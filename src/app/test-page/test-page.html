@@ -1,0 +1,68 @@
+<div class="p-6 space-y-4">
+  <div>
+    <h1 class="text-xl font-bold">API 测试页</h1>
+    <p class="text-xs text-gray-500">
+      点击 Search 请求 <code>GET /api/test/events</code>，验证前后端链路是否打通。
+    </p>
+  </div>
+
+  <button
+    type="button"
+    class="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded"
+    (click)="onSearch()"
+    [disabled]="loading()"
+    data-analytics="test-page-search"
+  >
+    {{ loading() ? '查询中…' : 'Search' }}
+  </button>
+
+  @if (error()) {
+    <div class="rounded bg-red-50 border border-red-200 text-red-700 px-3 py-2 text-sm">
+      {{ error() }}
+    </div>
+  }
+
+  @if (data(); as d) {
+    <div class="text-sm text-gray-600">
+      服务器时间（UTC）：{{ formatUtc(d.serverTimeUtc) }} ｜ 事件总数：<strong>{{ d.total }}</strong> ｜ 本次返回 {{ d.items.length }} 条
+    </div>
+
+    <div class="rounded border overflow-x-auto">
+      <table class="w-full text-sm border-collapse">
+        <thead>
+          <tr class="bg-gray-50 text-left">
+            <th class="px-3 py-2 font-semibold whitespace-nowrap">时间 (UTC)</th>
+            <th class="px-3 py-2 font-semibold">类型</th>
+            <th class="px-3 py-2 font-semibold">事件名 / 路径</th>
+            <th class="px-3 py-2 font-semibold">SessionId</th>
+            <th class="px-3 py-2 font-semibold">标题</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of d.items; track row.id) {
+            <tr class="border-t border-gray-100 hover:bg-gray-50">
+              <td class="px-3 py-1.5 whitespace-nowrap">{{ formatUtc(row.receivedAtUtc) }}</td>
+              <td class="px-3 py-1.5">
+                <span
+                  class="inline-block px-2 py-0.5 rounded text-xs font-medium"
+                  [class]="row.eventType === 'page'
+                    ? 'bg-indigo-100 text-indigo-800'
+                    : 'bg-teal-100 text-teal-800'"
+                >{{ row.eventType }}</span>
+              </td>
+              <td class="px-3 py-1.5 max-w-[240px] truncate" [title]="row.eventName">{{ row.eventName }}</td>
+              <td class="px-3 py-1.5 text-xs">{{ (row.sessionId ?? '').slice(0, 12) }}{{ row.sessionId ? '…' : '—' }}</td>
+              <td class="px-3 py-1.5 max-w-[200px] truncate" [title]="row.title ?? ''">{{ row.title || '—' }}</td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="5" class="text-center text-gray-400 py-6">暂无数据</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  } @else {
+    <p class="text-sm text-gray-400">点击上方 Search 按钮查看结果。</p>
+  }
+</div>

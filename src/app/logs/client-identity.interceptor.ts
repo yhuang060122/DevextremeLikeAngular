@@ -14,11 +14,12 @@ export const CLIENT_SPA_ANGULAR = 'spa-angular';
  * spa-angular / scalar / unknown-api-client，便于支持/内控排查。
  *
  * 注意：
- * - 不上报日志接口自身，避免“日志接口又产生日志”的自激循环；
+ * - 不上报埋点接口自身（analytics 事件批量上报），避免“埋点接口
+ *   又产生日志”的自激循环；
  * - Header 可以被伪造，这只是来源标签，不是安全鉴权（鉴权仍走 JWT）。
  */
 export const clientIdentityInterceptor: HttpInterceptorFn = (req, next) => {
-  if (req.url.includes('/api/logs/ui-behaviors/batch')) {
+  if (req.url.includes('/api/analytics/events/batch')) {
     return next(req);
   }
   return next(

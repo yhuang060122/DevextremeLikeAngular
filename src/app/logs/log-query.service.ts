@@ -4,11 +4,10 @@ import { Injectable, inject } from '@angular/core';
 export interface LogSearchFilter {
   fromUtc?: string;
   toUtc?: string;
-  userId?: string;
-  userNameContains?: string;
-  pathContains?: string;
-  clientSource?: string;
-  statusCode?: number;
+  /** analytics 事件专用：page / track */
+  eventType?: 'page' | 'track';
+  /** analytics 事件专用：事件名（track 名 / page 路径）模糊匹配 */
+  eventNameContains?: string;
   pageNumber: number;
   pageSize: number;
 }
@@ -21,53 +20,24 @@ export interface PagedResult<T> {
   totalPages: number;
 }
 
-export interface ApiAccessLogListItem {
-  id: number;
-  createdAtUtc: string;
-  userId?: string;
-  userName: string;
-  httpMethod: string;
-  path: string;
-  queryString?: string;
-  statusCode: number;
-  elapsedMs: number;
-  clientSource: string;
-  sourceHint?: string;
-  ipAddress: string;
-}
-
-export interface ApiAccessLogDetail extends ApiAccessLogListItem {
-  requestBodyPreview?: string;
-  userAgent: string;
-}
-
-export interface UiBehaviorLogListItem {
+/**
+ * analytics SDK 事件（前端 POST 到 /api/analytics/events/batch，
+ * 本查询端点与写入端点呼应，结构对齐 SDK 的 AnalyticsContext）。
+ */
+export interface AnalyticsEventLogListItem {
   id: number;
   receivedAtUtc: string;
-  userId?: string;
-  userName?: string;
-  eventType: string;
-  routeUrl?: string;
-  elementId?: string;
-  elementText?: string;
-  extraJson?: string;
-}
-
-export interface CorrelateNearbyResult {
-  apiLogs: ApiAccessLogListItem[];
-  uiLogs: UiBehaviorLogListItem[];
-}
-
-export interface LogPipelineSnapshot {
-  snapshotAtUtc: string;
-  apiPending: number;
-  apiErrors: number;
-  apiWorkerStaleSec: number;
-  apiLastSuccessAgeSec: number;
-  uiPending: number;
-  uiErrors: number;
-  uiWorkerStaleSec: number;
-  uiLastSuccessAgeSec: number;
+  sessionId?: string | null;
+  eventType: 'page' | 'track';
+  /** track → 事件名；page → 页面路径 */
+  eventName: string;
+  url?: string;
+  referrer?: string | null;
+  userAgent?: string;
+  /** page 事件的页面标题（冗余一列，便于列表展示） */
+  title?: string | null;
+  /** 事件完整属性，后端原文保存（存储前可脱敏），前端解析展示 */
+  propertiesJson?: string | null;
 }
 
 /**
@@ -85,42 +55,15 @@ export class LogQueryService {
       .set('pageSize', String(filter.pageSize));
     if (filter.fromUtc) p = p.set('fromUtc', filter.fromUtc);
     if (filter.toUtc) p = p.set('toUtc', filter.toUtc);
-    if (filter.userId) p = p.set('userId', filter.userId);
-    if (filter.userNameContains) p = p.set('userNameContains', filter.userNameContains);
-    if (filter.pathContains) p = p.set('pathContains', filter.pathContains);
-    if (filter.clientSource) p = p.set('clientSource', filter.clientSource);
-    if (filter.statusCode) p = p.set('statusCode', String(filter.statusCode));
+    if (filter.eventType) p = p.set('eventType', filter.eventType);
+    if (filter.eventNameContains) p = p.set('eventNameContains', filter.eventNameContains);
     return p;
   }
 
-  searchApiAccess(filter: LogSearchFilter) {
-    return this.http.get<PagedResult<ApiAccessLogListItem>>(`${this.base}/api-access`, {
+  /** 查询 analytics SDK 上报的事件（写入端为 /api/analytics/events/batch） */
+  searchAnalytics(filter: LogSearchFilter) {
+    return this.http.get<PagedResult<AnalyticsEventLogListItem>>(`${this.base}/analytics`, {
       params: this.buildParams(filter),
     });
-  }
-
-  getApiDetail(id: number) {
-    return this.http.get<ApiAccessLogDetail>(`${this.base}/api-access/${id}`);
-  }
-
-  searchUiBehavior(filter: LogSearchFilter) {
-    return this.http.get<PagedResult<UiBehaviorLogListItem>>(`${this.base}/ui-behavior`, {
-      params: this.buildParams(filter),
-    });
-  }
-
-  /** 查看某用户在某时刻 ±windowSeconds 内的全部 API + UI 事件，用于核对“点没点按钮、有没有真发请求” */
-  correlateNearby(userId: string, anchorUtc: string, windowSeconds = 45) {
-    return this.http.get<CorrelateNearbyResult>(`${this.base}/correlate-nearby`, {
-      params: new HttpParams()
-        .set('userId', userId)
-        .set('anchorUtc', anchorUtc)
-        .set('windowSeconds', String(windowSeconds)),
-    });
-  }
-
-  /** 日志后台管道状态（Worker 心跳 / 队列堆积 / 错误计数），仅供运维面板 */
-  getPipelineStatus() {
-    return this.http.get<LogPipelineSnapshot>(`${this.base}/pipeline-status`);
   }
 }

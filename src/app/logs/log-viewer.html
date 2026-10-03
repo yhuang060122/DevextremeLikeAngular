@@ -7,27 +7,6 @@
     </p>
   </div>
 
-  <!-- 管道健康状态卡片 -->
-  @if (pipeline(); as p) {
-    <div class="rounded border px-3 py-2 text-sm" [style]="pipelineCardStyle()">
-      <div class="font-semibold mb-1">{{ pipelineStatusText() }}</div>
-      <div class="grid grid-cols-2 gap-1 text-xs">
-        <div>
-          API日志｜待持久化≈<strong>{{ p.apiPending }}</strong>｜Worker静止
-          {{ p.apiWorkerStaleSec.toFixed(1) }}s｜累计异常 {{ p.apiErrors }}
-        </div>
-        <div>
-          UI日志｜待持久化≈<strong>{{ p.uiPending }}</strong>｜Worker静止
-          {{ p.uiWorkerStaleSec.toFixed(1) }}s｜累计异常 {{ p.uiErrors }}
-        </div>
-      </div>
-      <div class="text-xs mt-1 text-gray-600">
-        Worker静止 &gt;90s = 疑似卡死；堆积 &gt;2500 = 写入跟不上流量。快照：
-        {{ formatUtc(p.snapshotAtUtc) }}
-      </div>
-    </div>
-  }
-
   <!-- 筛选区 -->
   <div class="flex flex-wrap items-center gap-2">
     <input
@@ -48,30 +27,23 @@
     <button class="btn" type="button" (click)="setQuickRange(7)">近7天</button>
     <button class="btn" type="button" (click)="setQuickRange(30)">近30天</button>
 
-    <select class="input" [value]="clientSource()" (change)="clientSource.set($any($event.target).value)" aria-label="客户端来源">
-      @for (opt of sourceOptions; track opt.value) {
-        <option [value]="opt.value">{{ opt.label }}</option>
-      }
-    </select>
+    <span class="text-gray-400 text-xs">｜</span>
 
-    <input
-      class="input w-36"
-      placeholder="用户名 模糊"
-      [value]="userName()"
-      (input)="userName.set($any($event.target).value)"
-    />
+    <select
+      class="input"
+      [value]="eventTypeFilter()"
+      (change)="eventTypeFilter.set($any($event.target).value)"
+      aria-label="事件类型"
+    >
+      <option value="">全部类型</option>
+      <option value="page">page（页面浏览）</option>
+      <option value="track">track（自定义/点击）</option>
+    </select>
     <input
       class="input w-44"
-      placeholder="接口路径包含"
-      [value]="pathContains()"
-      (input)="pathContains.set($any($event.target).value)"
-    />
-    <input
-      class="input w-24"
-      type="number"
-      placeholder="状态码"
-      [value]="statusCode()"
-      (input)="statusCode.set($any($event.target).value)"
+      placeholder="事件名/路径 模糊"
+      [value]="eventNameContains()"
+      (input)="eventNameContains.set($any($event.target).value)"
     />
 
     <button class="btn btn-primary" type="button" (click)="onSearch()" [disabled]="loading()">
@@ -85,109 +57,41 @@
     </div>
   }
 
-  <!-- Tab -->
-  <div class="flex gap-2 border-b">
-    <button
-      class="tab"
-      [class.tab-active]="activeTab() === 'api'"
-      type="button"
-      (click)="switchTab('api')"
-    >
-      API 访问日志
-    </button>
-    <button
-      class="tab"
-      [class.tab-active]="activeTab() === 'ui'"
-      type="button"
-      (click)="switchTab('ui')"
-    >
-      UI 行为日志（仅供线索）
-    </button>
+  <!-- Analytics 事件表 -->
+  <div class="rounded border overflow-x-auto">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>时间 (UTC)</th>
+          <th>类型</th>
+          <th>事件名 / 路径</th>
+          <th>SessionId</th>
+          <th>页面 URL</th>
+          <th>属性摘要</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (row of items(); track row.id) {
+          <tr class="hover:bg-gray-50">
+            <td class="whitespace-nowrap">{{ formatUtc(row.receivedAtUtc) }}</td>
+            <td><span [class]="row.eventType === 'page' ? 'badge badge-page' : 'badge badge-track'">{{ row.eventType }}</span></td>
+            <td class="max-w-[220px] truncate" [title]="row.eventName">{{ row.eventName }}</td>
+            <td class="text-xs">{{ (row.sessionId ?? '').slice(0, 12) }}{{ row.sessionId ? '…' : '—' }}</td>
+            <td class="max-w-[260px] truncate" [title]="row.url ?? ''">{{ row.url }}</td>
+            <td class="max-w-[240px] truncate" [title]="analyticsSummary(row)">{{ analyticsSummary(row) }}</td>
+            <td class="whitespace-nowrap">
+              <button class="btn btn-sm" type="button" (click)="showDetail(row)">详情</button>
+            </td>
+          </tr>
+        } @empty {
+          <tr>
+            <td colspan="7" class="text-center text-gray-400 py-6">暂无数据</td>
+          </tr>
+        }
+      </tbody>
+    </table>
   </div>
-
-  <!-- API 访问日志表 -->
-  @if (activeTab() === 'api') {
-    <div class="rounded border overflow-x-auto">
-      <table class="table">
-        <thead>
-          <tr>
-            <th>时间 (UTC)</th>
-            <th>用户</th>
-            <th>Method</th>
-            <th>路径</th>
-            <th>来源</th>
-            <th>Status</th>
-            <th>耗时ms</th>
-            <th>操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (row of apiItems(); track row.id) {
-            <tr class="hover:bg-gray-50">
-              <td class="whitespace-nowrap">{{ formatUtc(row.createdAtUtc) }}</td>
-              <td>{{ row.userName || '—' }}</td>
-              <td><span [class]="methodClass(row.httpMethod)">{{ row.httpMethod }}</span></td>
-              <td class="max-w-[280px] truncate" title="{{ row.path }}">{{ row.path }}</td>
-              <td>
-                <span [class]="sourceClass(row.clientSource)">{{ row.clientSource }}</span>
-                @if (row.sourceHint) {
-                  <span class="text-xs text-gray-400 ml-1" title="来源提示">{{ row.sourceHint }}</span>
-                }
-              </td>
-              <td [class]="row.statusCode >= 400 ? 'text-red-600 font-semibold' : 'text-emerald-700 font-semibold'">
-                {{ row.statusCode }}
-              </td>
-              <td>{{ row.elapsedMs }}</td>
-              <td class="whitespace-nowrap">
-                <button class="btn btn-sm" type="button" (click)="showDetail(row)">详情</button>
-                @if (row.userId) {
-                  <button class="btn btn-sm" type="button" (click)="showCorrelate(row)">附近事件</button>
-                }
-              </td>
-            </tr>
-          } @empty {
-            <tr>
-              <td colspan="8" class="text-center text-gray-400 py-6">暂无数据</td>
-            </tr>
-          }
-        </tbody>
-      </table>
-    </div>
-  }
-
-  <!-- UI 行为日志表 -->
-  @if (activeTab() === 'ui') {
-    <div class="rounded border overflow-x-auto">
-      <table class="table">
-        <thead>
-          <tr>
-            <th>时间 (UTC)</th>
-            <th>UserId</th>
-            <th>事件类型</th>
-            <th>路由</th>
-            <th>元素ID</th>
-            <th>标签</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (row of uiItems(); track row.id) {
-            <tr class="hover:bg-gray-50">
-              <td class="whitespace-nowrap">{{ formatUtc(row.receivedAtUtc) }}</td>
-              <td class="text-xs">{{ (row.userId ?? '').slice(0, 18) }}{{ row.userId ? '…' : '' }}</td>
-              <td>{{ row.eventType }}</td>
-              <td class="max-w-[240px] truncate" title="{{ row.routeUrl ?? '' }}">{{ row.routeUrl }}</td>
-              <td>{{ row.elementId }}</td>
-              <td>{{ row.elementText }}</td>
-            </tr>
-          } @empty {
-            <tr>
-              <td colspan="6" class="text-center text-gray-400 py-6">暂无数据</td>
-            </tr>
-          }
-        </tbody>
-      </table>
-    </div>
-  }
 
   <!-- 分页 -->
   <div class="flex items-center gap-3 text-sm">
@@ -206,87 +110,32 @@
   </div>
 </div>
 
-<!-- 日志详情弹窗 -->
+<!-- Analytics 事件详情弹窗 -->
 @if (detailVisible()) {
   <div class="modal-mask" (click)="detailVisible.set(false)">
     <div class="modal-panel w-[720px]" (click)="$event.stopPropagation()">
       <div class="flex justify-between items-center mb-3">
-        <h2 class="font-bold text-lg">日志详情 #{{ selectedDetail()?.id }}</h2>
+        <h2 class="font-bold text-lg">Analytics 事件详情 #{{ selected()?.id }}</h2>
         <button class="btn btn-sm" type="button" (click)="detailVisible.set(false)">关闭</button>
       </div>
-      @if (selectedDetail(); as d) {
+      @if (selected(); as a) {
         <div class="space-y-1 text-sm">
-          <div><strong>时间 UTC：</strong>{{ formatUtc(d.createdAtUtc) }}</div>
-          <div><strong>用户：</strong>{{ d.userName }}（{{ d.userId ?? '—' }}）</div>
           <div>
-            <strong>来源：</strong>
-            <span [class]="sourceClass(d.clientSource)">{{ d.clientSource }}</span>
+            <strong>类型 / 名称：</strong>
+            <span [class]="a.eventType === 'page' ? 'badge badge-page' : 'badge badge-track'">{{ a.eventType }}</span>
+            <code class="ml-1">{{ a.eventName }}</code>
           </div>
-          <div><strong>Method / Path：</strong>{{ d.httpMethod }} {{ d.path }}{{ d.queryString }}</div>
-          <div><strong>Status：</strong>{{ d.statusCode }} ｜ 耗时：{{ d.elapsedMs }}ms</div>
-          <div><strong>SourceHint：</strong>{{ d.sourceHint || '—' }}</div>
-          <div><strong>IP：</strong>{{ d.ipAddress }}</div>
-          <div><strong>User-Agent：</strong><pre class="pre-block">{{ d.userAgent }}</pre></div>
+          <div><strong>时间 UTC：</strong>{{ formatUtc(a.receivedAtUtc) }}</div>
+          <div><strong>SessionId：</strong>{{ a.sessionId ?? '—' }}</div>
+          <div><strong>页面 URL：</strong>{{ a.url || '—' }}</div>
+          <div><strong>Referrer：</strong>{{ a.referrer || '—' }}</div>
+          <div><strong>User-Agent：</strong><pre class="pre-block">{{ a.userAgent || '—' }}</pre></div>
           <div>
-            <strong>RequestBody 预览（已脱敏）：</strong>
-            <pre class="pre-block">{{ d.requestBodyPreview ?? '（无）' }}</pre>
+            <strong>事件属性（完整 payload）：</strong>
+            <pre class="pre-block">{{ analyticsPropsJson(a) }}</pre>
           </div>
         </div>
       }
-    </div>
-  </div>
-}
-
-<!-- 附近事件弹窗 -->
-@if (correlateVisible()) {
-  <div class="modal-mask" (click)="correlateVisible.set(false)">
-    <div class="modal-panel w-[860px]" (click)="$event.stopPropagation()">
-      <div class="flex justify-between items-center mb-3">
-        <h2 class="font-bold text-lg">该用户前后 45 秒全部事件</h2>
-        <button class="btn btn-sm" type="button" (click)="correlateVisible.set(false)">关闭</button>
-      </div>
-      <p class="text-xs text-gray-500 mb-2">
-        锚点：{{ formatUtc(correlateAnchor()) }}
-      </p>
-
-      <h3 class="font-semibold text-sm mb-1">API 请求</h3>
-      <div class="rounded border overflow-x-auto mb-3">
-        <table class="table">
-          <tbody>
-            @for (r of correlateApi(); track r.id) {
-              <tr>
-                <td class="whitespace-nowrap">{{ formatUtc(r.createdAtUtc) }}</td>
-                <td>{{ r.httpMethod }} {{ r.path }}</td>
-                <td>{{ r.statusCode }}</td>
-                <td><span [class]="sourceClass(r.clientSource)">{{ r.clientSource }}</span></td>
-              </tr>
-            } @empty {
-              <tr><td class="text-center text-gray-400 py-3">无 API 请求</td></tr>
-            }
-          </tbody>
-        </table>
-      </div>
-
-      <h3 class="font-semibold text-sm mb-1">UI 行为上报（浏览器）</h3>
-      <div class="rounded border overflow-x-auto">
-        <table class="table">
-          <tbody>
-            @for (r of correlateUi(); track r.id) {
-              <tr>
-                <td class="whitespace-nowrap">{{ formatUtc(r.receivedAtUtc) }}</td>
-                <td>{{ r.eventType }}</td>
-                <td>{{ r.routeUrl }}</td>
-                <td>{{ r.elementId }} {{ r.elementText }}</td>
-              </tr>
-            } @empty {
-              <tr><td class="text-center text-gray-400 py-3">无 UI 事件</td></tr>
-            }
-          </tbody>
-        </table>
-      </div>
-      <p class="text-xs text-gray-500 mt-2">
-        提示：若有 button_click 但没有对应 API，说明请求被拦截 / 校验未过 / 上报丢包。
-      </p>
     </div>
   </div>
 }

@@ -1,0 +1,9 @@
+# .NET build output
+bin/
+obj/
+*.user
+
+# Local SQLite database (auto-created via EnsureCreated on startup)
+*.db
+*.db-shm
+*.db-wal

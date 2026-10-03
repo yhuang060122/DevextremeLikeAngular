@@ -1,0 +1,28 @@
+{
+  "events": [
+    {
+      "sessionId": "test-session-1",
+      "url": "http://localhost:4200/logs",
+      "referrer": "http://localhost:4200/",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) TestAgent/1.0",
+      "event": {
+        "type": "page",
+        "name": "/logs",
+        "properties": { "title": "日志查询" },
+        "timestamp": "2026-10-03T15:00:00.000Z"
+      }
+    },
+    {
+      "sessionId": "test-session-1",
+      "url": "http://localhost:4200/logs",
+      "referrer": null,
+      "userAgent": "Mozilla/5.0 TestAgent/1.0",
+      "event": {
+        "type": "track",
+        "name": "Element Clicked",
+        "properties": { "element": "nav-logs", "text": "日志查询", "tag": "A", "id": null, "cssClass": "text-sm" },
+        "timestamp": "2026-10-03T15:00:05.000Z"
+      }
+    }
+  ]
+}
