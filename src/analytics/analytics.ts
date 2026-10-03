@@ -50,7 +50,7 @@ export class Analytics implements EventRecorder {
     );
 
 
-    this.factory = new EventFactory(this.debug);
+    this.factory = new EventFactory(this.debug, config.sessionIdProvider);
 
     this.wireProbes(config.probes);
 

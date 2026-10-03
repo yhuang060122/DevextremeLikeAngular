@@ -46,10 +46,11 @@ export function readPageContext(): {
 }
 
 /**
- * 会话 id 的存储键。
+ * 会话 id 的存储键（仅作为未配置 sessionIdProvider 时的回退）。
  *
- * SDK 只读不写：由宿主应用在启动时播种（见 src/app/analytics 的
- * AnalyticsService），写入失败时事件自动携带 sessionId: null。
+ * SDK 只读不写：由宿主应用在启动时播种（写入失败时事件自动携带 sessionId: null）。
+ * Angular 宿主已改用 Trace-Session-Id（AnalyticsConfig.sessionIdProvider），
+ * 此存储回退仅供其它宿主使用。
  */
 export const STORAGE_KEY = 'analytics.session';
 

@@ -2,8 +2,8 @@ import { Injectable, OnDestroy, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { Analytics } from '../../analytics/analytics';
 import { ClickTracker } from '../../analytics/click-tracker';
-import { STORAGE_KEY } from '../../analytics/domain';
 import type { ProbeFactory } from '../../analytics/tracker';
+import { TraceSessionService } from '../trace-session/trace-session.service';
 import { routerPageProbe } from './router-page-tracker';
 
 /**
@@ -15,27 +15,6 @@ const ANALYTICS_ENDPOINT = '/api/analytics/events/batch';
 /** 打开后可在 DevTools 看到 创建→排队→发送→失败 全流程；上线前改为 false */
 const ANALYTICS_DEBUG = true;
 
-/**
- * SDK 只读 sessionId、不负责播种；这里在启动时生成一个会话 id
- * 写入 sessionStorage，让同标签页内的所有事件可关联。
- */
-function seedSessionId(): void {
-  if (typeof sessionStorage === 'undefined') return;
-
-  try {
-    if (sessionStorage.getItem(STORAGE_KEY)) return;
-
-    const id =
-      typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-        ? crypto.randomUUID()
-        : `s-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-
-    sessionStorage.setItem(STORAGE_KEY, id);
-  } catch {
-    // 隐私模式等场景下 storage 不可写：SDK 侧自动回退 sessionId: null
-  }
-}
-
 /** 点击探针：监听带有 data-analytics 属性的元素 */
 function clickProbe(): ProbeFactory {
   return (recorder) => new ClickTracker(recorder);
@@ -45,6 +24,8 @@ function clickProbe(): ProbeFactory {
  * 将 src/analytics 的埋点 SDK 接入 Angular 应用：
  * - 根注入器单例，应用启动即初始化（见 app.config.ts 的 provideEnvironmentInitializer）；
  * - 页面浏览用 Router 探针（SPA 路由切换），点击用 ClickTracker（data-analytics 属性）；
+ * - 事件 sessionId 使用登录会话的 Trace-Session-Id（未登录时为 null），
+ *   由 TraceSessionService 提供，登录后拦截器捕获响应头并实时生效；
  * - 页面隐藏 / 卸载时由 SDK 内部兜底 keepalive 冲刷，业务侧无需处理。
  */
 @Injectable({ providedIn: 'root' })
@@ -52,13 +33,15 @@ export class AnalyticsService implements OnDestroy {
   private readonly analytics: Analytics;
 
   constructor() {
-    seedSessionId();
-
     const router = inject(Router);
+    const traceSession = inject(TraceSessionService);
 
     this.analytics = new Analytics({
       endpoint: ANALYTICS_ENDPOINT,
       debug: ANALYTICS_DEBUG,
+      // 会话关联改用 Trace-Session-Id：登录后由拦截器写入 TraceSessionService，
+      // 每个事件创建时实时读取（未登录/已登出为 null）。
+      sessionIdProvider: () => traceSession.traceSessionId(),
       probes: [clickProbe(), routerPageProbe(router)],
     });
 

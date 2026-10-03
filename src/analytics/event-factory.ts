@@ -6,9 +6,14 @@ import type { DebugController } from './debug';
 
 export class EventFactory {
   private readonly debug: DebugController;
+  private readonly sessionIdProvider: (() => string | null) | undefined;
 
-  constructor(debug: DebugController) {
+  constructor(
+    debug: DebugController,
+    sessionIdProvider?: () => string | null,
+  ) {
     this.debug = debug;
+    this.sessionIdProvider = sessionIdProvider;
   }
 
   track(name: string, properties: Record<string, unknown> = {}): AnalyticsContext {
@@ -38,6 +43,18 @@ export class EventFactory {
     return this.createContext(event);
   }
 
+  /**
+   * 会话 id 解析：
+   * - 配置了 sessionIdProvider → 用提供者实时返回值（如 Trace-Session-Id）；
+   * - 未配置 → 回退到 sessionStorage 中宿主播种的 id。
+   */
+  private resolveSessionId(): string | null {
+    if (this.sessionIdProvider) {
+      return this.sessionIdProvider();
+    }
+    return readSessionId();
+  }
+
   private createContext(event: AnalyticsEvent): AnalyticsContext {
     const page = readPageContext();
 
@@ -47,7 +64,7 @@ export class EventFactory {
     };
 
     const context: AnalyticsContext = {
-      sessionId: readSessionId(),
+      sessionId: this.resolveSessionId(),
       url: page.pageUrl,
       referrer: scope.document?.referrer || null,
       userAgent: scope.navigator?.userAgent ?? '',

@@ -2,6 +2,7 @@ import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
 import { AnalyticsService } from '../app/analytics/analytics.service';
+import { TraceSessionService } from '../app/trace-session/trace-session.service';
 
 @Component({ template: '' })
 class DummyComponent {}
@@ -49,7 +50,11 @@ describe('AnalyticsService（接入 Angular 应用）', () => {
     return JSON.parse(call[1].body as string) as SentBatch;
   }
 
-  it('启动即实例化，路由切换产生 page 事件并携带 sessionId', async () => {
+  it('启动即实例化，路由切换产生 page 事件并携带 Trace-Session-Id', async () => {
+    // 模拟登录后拦截器写入 Trace-Session-Id
+    const traceSession = TestBed.inject(TraceSessionService);
+    traceSession.setTraceSessionId('trace-session-1');
+
     const service = TestBed.inject(AnalyticsService);
     const router = TestBed.inject(Router);
 
@@ -61,10 +66,25 @@ describe('AnalyticsService（接入 Angular 应用）', () => {
     const names = batch.events.map((e) => e.event.name);
     expect(names).toContain('/logs');
 
-    // SDK 播种的 sessionId 应被所有事件携带
+    // 事件 sessionId 应取当前 tab 的 Trace-Session-Id
     const sessionIds = new Set(batch.events.map((e) => e.sessionId));
     expect(sessionIds.size).toBe(1);
-    expect([...sessionIds][0]).not.toBeNull();
+    expect([...sessionIds][0]).toBe('trace-session-1');
+  });
+
+  it('未登录（无 Trace-Session-Id）时事件 sessionId 为 null', async () => {
+    // 防御性清空：确保本用例从未登录状态开始
+    TestBed.inject(TraceSessionService).clear();
+
+    const service = TestBed.inject(AnalyticsService);
+    const router = TestBed.inject(Router);
+
+    await router.navigateByUrl('/logs');
+    await service.flush();
+
+    const batch = lastSentBatch();
+    expect(batch.events.length).toBeGreaterThan(0);
+    expect(batch.events.every((e) => e.sessionId === null)).toBe(true);
   });
 
   it('点击带 data-analytics 的元素记录 Element Clicked', async () => {
