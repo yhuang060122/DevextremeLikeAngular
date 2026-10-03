@@ -1,0 +1,137 @@
+/* 日志查询面板 —— 共用样式（原生 CSS，模板内的 Tailwind 类由 Tailwind 自动扫描生成） */
+
+.input {
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 14px;
+  background: #fff;
+}
+
+.btn {
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  padding: 4px 12px;
+  font-size: 14px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.btn:hover:not(:disabled) {
+  background: #f9fafb;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.btn-sm {
+  padding: 2px 8px;
+  font-size: 12px;
+}
+
+.tab {
+  padding: 6px 12px;
+  font-size: 14px;
+  border-bottom: 2px solid transparent;
+  color: #6b7280;
+  background: none;
+  cursor: pointer;
+}
+
+.tab:hover {
+  color: #1f2937;
+}
+
+.tab-active {
+  border-bottom-color: #2563eb;
+  color: #1d4ed8;
+  font-weight: 600;
+}
+
+.table {
+  width: 100%;
+  font-size: 14px;
+  border-collapse: collapse;
+}
+
+.table th {
+  text-align: left;
+  padding: 8px 12px;
+  background: #f9fafb;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.table td {
+  padding: 6px 12px;
+  border-top: 1px solid #f3f4f6;
+}
+
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.badge-spa {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.badge-scalar {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.badge-unknown {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.pre-block {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 8px;
+  margin-top: 4px;
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 16rem;
+  overflow: auto;
+}
+
+.modal-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.modal-panel {
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+  padding: 20px;
+  max-height: 85vh;
+  overflow-y: auto;
+}

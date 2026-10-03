@@ -1,0 +1,326 @@
+<div class="mx-auto max-w-[1080px] px-6 py-10 pb-16 font-sans text-slate-900">
+  <!-- ================= Hero ================= -->
+  <header class="mb-10">
+    <p class="mb-2 text-[13px] font-semibold uppercase tracking-wider text-indigo-600">Angular 可扩展组件 · 插槽四件套</p>
+    <h1 class="mb-3 text-[34px] font-medium leading-tight tracking-tight">壳管布局，用户管内容</h1>
+    <p class="max-w-[720px] text-[15px] leading-relaxed text-slate-600">
+      一个组件不该把内容写死 —— 它只负责给<strong>结构、间距、容器、位置</strong>，
+      里面放什么，交给调用方自由填充。下面用四种方式实现同一个
+      <code class="code-inline">my-toolbar</code>，从「最简单」到「最接近 DevExtreme
+      <code class="code-inline">dxo-*</code> 配置指令」。
+    </p>
+  </header>
+
+  <!-- ================= Demo A ================= -->
+  <section class="mb-7 rounded-2xl border border-slate-200 bg-white p-6">
+    <div class="mb-1.5 flex items-center gap-2.5">
+      <span class="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-bold text-blue-700">版本 A</span>
+      <h2 class="text-lg font-semibold">ng-content 多插槽 <span class="text-[13px] font-normal text-slate-400">· 静态投影 · 拿来就能用</span></h2>
+    </div>
+    <p class="mb-4 text-sm leading-relaxed text-slate-600">
+      组件模板里放几个 <code class="code-inline">&lt;ng-content select="[before]"&gt;</code> 占位，
+      调用方直接写 HTML 丢进来。<strong>限制：</strong>内容是"静态投影"，组件不能把
+      它挪走、延迟或二次渲染；内容生命周期属于父组件。
+    </p>
+
+    <div class="grid grid-cols-[420px_1fr] gap-4.5 max-lg:grid-cols-1">
+      <div class="min-w-0 overflow-hidden rounded-xl bg-slate-900">
+        <div class="bg-slate-800 px-3.5 py-2 text-xs font-semibold tracking-wider text-slate-400">调用方怎么写</div>
+        <pre class="m-0 overflow-x-auto p-3.5 font-mono text-[12.5px] leading-relaxed text-slate-200"><code>&lt;my-toolbar-a&gt;
+  &lt;button before (click)="add()"&gt;新增&lt;/button&gt;
+
+  &lt;div after&gt;
+    &lt;input (input)="onSearch($event)" placeholder="搜索"&gt;
+    &lt;select (change)="setStatus($event)"&gt; … &lt;/select&gt;
+    &lt;button (click)="refresh()"&gt;刷新&lt;/button&gt;
+  &lt;/div&gt;
+&lt;/my-toolbar-a&gt;</code></pre>
+      </div>
+
+      <div class="min-w-0">
+        <div class="mb-2.5 text-[13px] font-semibold text-slate-700">现场效果（事件绑定完全正常）</div>
+        <my-toolbar-a>
+          <button class="btn btn-primary" before (click)="add()">＋ 新增</button>
+          <div class="flex flex-wrap items-center gap-2" after>
+            <input class="input" [value]="search()" (input)="onSearch($event)" placeholder="搜索…" />
+            <select class="select" [value]="status()" (change)="setStatus($event)">
+              <option>全部</option>
+              <option>进行中</option>
+              <option>已完成</option>
+            </select>
+            <button class="btn" (click)="refresh()">
+              {{ refreshing() ? '刷新中…' : '⟳ 刷新' }}
+            </button>
+          </div>
+        </my-toolbar-a>
+        <p class="mt-3 text-[13px] leading-relaxed text-slate-500">
+          ✅ 组件侧几乎零逻辑：三个 <code class="code-inline">ng-content</code> + 一个
+          <code class="code-inline">flex-1</code> 撑开中间。适合：不需要自动溢出、不需要把项挪进菜单的简单排布。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= Demo B ================= -->
+  <section class="mb-7 rounded-2xl border border-slate-200 bg-white p-6">
+    <div class="mb-1.5 flex items-center gap-2.5">
+      <span class="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-bold text-green-700">版本 B</span>
+      <h2 class="text-lg font-semibold">TemplateRef 模板插槽 <span class="text-[13px] font-normal text-slate-400">· 拿渲染蓝图 · 可延迟 / 可复用</span></h2>
+    </div>
+    <p class="mb-4 text-sm leading-relaxed text-slate-600">
+      不用 <code class="code-inline">ng-content</code> 直接吞 DOM，而是通过
+      <code class="code-inline">@Input</code> 接收 <code class="code-inline">TemplateRef</code>。
+      模板只是<strong>蓝图</strong>，可以渲染多遍、稍后渲染、渲染到别的容器（比如溢出菜单）
+      ——这是 <code class="code-inline">ng-content</code> 做不到的。
+    </p>
+
+    <div class="grid grid-cols-[420px_1fr] gap-4.5 max-lg:grid-cols-1">
+      <div class="min-w-0 overflow-hidden rounded-xl bg-slate-900">
+        <div class="bg-slate-800 px-3.5 py-2 text-xs font-semibold tracking-wider text-slate-400">调用方怎么写</div>
+        <pre class="m-0 overflow-x-auto p-3.5 font-mono text-[12.5px] leading-relaxed text-slate-200"><code>&lt;my-toolbar-b [beforeTpl]="tplLeft"
+              [afterTpl]="tplRight" /&gt;
+
+&lt;ng-template #tplLeft&gt;
+  &lt;button (click)="add()"&gt;新增&lt;/button&gt;
+&lt;/ng-template&gt;
+
+&lt;ng-template #tplRight&gt;
+  &lt;input (input)="onSearch($event)"&gt;
+  &lt;button (click)="refresh()"&gt;刷新&lt;/button&gt;
+&lt;/ng-template&gt;</code></pre>
+      </div>
+
+      <div class="min-w-0">
+        <div class="mb-2.5 text-[13px] font-semibold text-slate-700">现场效果</div>
+        <my-toolbar-b [beforeTpl]="tplLeft" [afterTpl]="tplRight" />
+
+        <div class="mt-4 mb-2.5 text-[13px] font-semibold text-slate-700">同一份蓝图，再画一遍（TemplateRef 可复用）</div>
+        <div class="flex items-center gap-2.5 rounded-xl border border-dashed border-slate-400 bg-slate-50 px-3 py-2.5">
+          <ng-container [ngTemplateOutlet]="tplLeft"></ng-container>
+          <span class="text-xs text-slate-500">← 同一个 #tplLeft 被渲染到 toolbar 之外的第二个位置</span>
+        </div>
+        <p class="mt-3 text-[13px] leading-relaxed text-slate-500">
+          ✅ 组件可以先不画、等算完宽度，再把某些模板丢进「更多」下拉。
+          缺点：调用方要手动定义 <code class="code-inline">#xxx</code>，不如写一行行按钮自然。
+        </p>
+      </div>
+    </div>
+
+    <ng-template #tplLeft>
+      <button class="btn btn-primary" (click)="add()">＋ 新增</button>
+    </ng-template>
+    <ng-template #tplRight>
+      <input class="input" [value]="search()" (input)="onSearch($event)" placeholder="搜索…" />
+      <button class="btn" (click)="refresh()">{{ refreshing() ? '刷新中…' : '⟳ 刷新' }}</button>
+    </ng-template>
+  </section>
+
+  <!-- ================= Demo C ================= -->
+  <section class="mb-7 rounded-2xl border border-slate-200 bg-white p-6">
+    <div class="mb-1.5 flex items-center gap-2.5">
+      <span class="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-bold text-amber-700">版本 C</span>
+      <h2 class="text-lg font-semibold">自动收集插槽指令 <span class="text-[13px] font-normal text-slate-400">· 不限数量 · 最像 dx-item</span></h2>
+    </div>
+    <p class="mb-4 text-sm leading-relaxed text-slate-600">
+      一个<strong>轻注册指令</strong> <code class="code-inline">myToolbarItem</code> 只负责「把自己的模板蓝图
+      上报给父组件」；父组件按位置遍历、用 <code class="code-inline">ngTemplateOutlet</code> 画出来。
+      想放几个就放几个，每个自带 <code class="code-inline">before / center / after</code> 位置标记。
+    </p>
+
+    <div class="grid grid-cols-[420px_1fr] gap-4.5 max-lg:grid-cols-1">
+      <div class="min-w-0 overflow-hidden rounded-xl bg-slate-900">
+        <div class="bg-slate-800 px-3.5 py-2 text-xs font-semibold tracking-wider text-slate-400">调用方怎么写</div>
+        <pre class="m-0 overflow-x-auto p-3.5 font-mono text-[12.5px] leading-relaxed text-slate-200"><code>&lt;my-toolbar-c&gt;
+  &lt;ng-template myToolbarItem="before"&gt;
+    &lt;button (click)="add()"&gt;新增&lt;/button&gt;
+  &lt;/ng-template&gt;
+  &lt;ng-template myToolbarItem="before"&gt;
+    &lt;button (click)="batch()"&gt;批量操作&lt;/button&gt;
+  &lt;/ng-template&gt;
+  &lt;ng-template myToolbarItem="center"&gt;
+    &lt;span&gt;共 {{ count() }} 条&lt;/span&gt;
+  &lt;/ng-template&gt;
+  &lt;ng-template myToolbarItem="after"&gt;
+    &lt;input (input)="onSearch($event)"&gt;
+  &lt;/ng-template&gt;
+  &lt;ng-template myToolbarItem="after"&gt;
+    &lt;button (click)="refresh()"&gt;刷新&lt;/button&gt;
+  &lt;/ng-template&gt;
+&lt;/my-toolbar-c&gt;</code></pre>
+      </div>
+
+      <div class="min-w-0">
+        <div class="mb-2.5 text-[13px] font-semibold text-slate-700">现场效果（before ×2 + center ×1 + after ×2）</div>
+        <my-toolbar-c>
+          <ng-template myToolbarItem="before">
+            <button class="btn btn-primary" (click)="add()">＋ 新增</button>
+          </ng-template>
+          <ng-template myToolbarItem="before">
+            <button class="btn" (click)="batch()">⚡ 批量操作</button>
+          </ng-template>
+          <ng-template myToolbarItem="center">
+            <span class="inline-flex items-center whitespace-nowrap rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700">共 {{ count() }} 条 · {{ status() }}</span>
+          </ng-template>
+          <ng-template myToolbarItem="after">
+            <input class="input" [value]="search()" (input)="onSearch($event)" placeholder="搜索…" />
+          </ng-template>
+          <ng-template myToolbarItem="after">
+            <button class="btn" (click)="refresh()">{{ refreshing() ? '刷新中…' : '⟳ 刷新' }}</button>
+          </ng-template>
+        </my-toolbar-c>
+        <p class="mt-3 text-[13px] leading-relaxed text-slate-500">
+          ✅ 这就是 <code class="code-inline">dxi-data-grid-item</code> 的极简原型：没有黑盒 JS-core、
+          没有桥接魔法，全部原生 Angular。指令只上报蓝图，父组件只管按位置画。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= Demo D ================= -->
+  <section class="mb-7 rounded-2xl border border-slate-200 bg-white p-6">
+    <div class="mb-1.5 flex items-center gap-2.5">
+      <span class="inline-flex items-center rounded-full bg-purple-100 px-2.5 py-0.5 text-xs font-bold text-purple-700">版本 D</span>
+      <h2 class="text-lg font-semibold">dxo-toolbar 配置指令 <span class="text-[13px] font-normal text-slate-400">· 不渲染 DOM · 控制 Grid 的内部组件</span></h2>
+    </div>
+    <p class="mb-4 text-sm leading-relaxed text-slate-600">
+      这是 DevExtreme <code class="code-inline">dxo-*</code> 的原生 Angular 版：
+      <code class="code-inline">&lt;dxo-toolbar&gt;</code> 不画任何东西（纯配置指令），只把
+      <strong>position / visible / 插槽项</strong> 上报给宿主 <code class="code-inline">my-grid</code>；
+      grid 把 toolbar 当作<strong>内部组件</strong>，按配置在表格上方/下方渲染。
+      连"toolbar 存不存在"都不写死在 grid 里。
+    </p>
+
+    <div class="grid grid-cols-[420px_1fr] gap-4.5 max-lg:grid-cols-1">
+      <div class="min-w-0 overflow-hidden rounded-xl bg-slate-900">
+        <div class="bg-slate-800 px-3.5 py-2 text-xs font-semibold tracking-wider text-slate-400">调用方怎么写</div>
+        <pre class="m-0 overflow-x-auto p-3.5 font-mono text-[12.5px] leading-relaxed text-slate-200"><code>&lt;my-grid [rows]="gridRows"&gt;
+  &lt;dxo-toolbar [position]="tbPosition()"
+              [visible]="tbVisible()"&gt;
+    &lt;ng-template myToolbarItem="before"&gt;
+      &lt;button (click)="add()"&gt;新增&lt;/button&gt;
+    &lt;/ng-template&gt;
+    &lt;ng-template myToolbarItem="center"&gt;
+      &lt;span&gt;共 {{ count() }} 条&lt;/span&gt;
+    &lt;/ng-template&gt;
+    &lt;ng-template myToolbarItem="after"&gt;
+      &lt;input (input)="onSearch($event)"&gt;
+      &lt;button (click)="refresh()"&gt;刷新&lt;/button&gt;
+    &lt;/ng-template&gt;
+  &lt;/dxo-toolbar&gt;
+&lt;/my-grid&gt;</code></pre>
+      </div>
+
+      <div class="min-w-0">
+        <div class="mb-2.5 text-[13px] font-semibold text-slate-700">现场效果 —— 用指令控制内部 toolbar</div>
+        <div class="mb-2.5 flex flex-wrap items-center gap-2">
+          <button class="btn {{ tbPosition() === 'top' ? 'btn-primary' : '' }}" (click)="tbPosition.set('top')">toolbar 置顶</button>
+          <button class="btn {{ tbPosition() === 'bottom' ? 'btn-primary' : '' }}" (click)="tbPosition.set('bottom')">toolbar 置底</button>
+          <button class="btn" (click)="tbVisible.set(!tbVisible())">{{ tbVisible() ? '🙈 隐藏 toolbar' : '👁 显示 toolbar' }}</button>
+          <span class="text-xs text-slate-400">← 这三个按钮只改页面信号，grid / dxo-toolbar 自动响应</span>
+        </div>
+
+        <my-grid [rows]="gridRows">
+          <dxo-toolbar [position]="tbPosition()" [visible]="tbVisible()">
+            <ng-template myToolbarItem="before">
+              <button class="btn btn-primary" (click)="add()">＋ 新增</button>
+            </ng-template>
+            <ng-template myToolbarItem="center">
+              <span class="inline-flex items-center whitespace-nowrap rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700">共 {{ count() }} 条 · {{ status() }}</span>
+            </ng-template>
+            <ng-template myToolbarItem="after">
+              <input class="input" [value]="search()" (input)="onSearch($event)" placeholder="搜索…" />
+            </ng-template>
+            <ng-template myToolbarItem="after">
+              <button class="btn" (click)="refresh()">{{ refreshing() ? '刷新中…' : '⟳ 刷新' }}</button>
+            </ng-template>
+          </dxo-toolbar>
+        </my-grid>
+
+        <p class="mt-3 text-[13px] leading-relaxed text-slate-500">
+          ✅ <code class="code-inline">dxo-toolbar</code> 是纯配置：不渲染 DOM，通过
+          <code class="code-inline">ToolbarRegistry</code> 收集内部项并注册给宿主；grid 把
+          <code class="code-inline">my-toolbar-c</code> 当内部组件，用
+          <code class="code-inline">[items]</code> 注入渲染。移除 <code class="code-inline">&lt;dxo-toolbar&gt;</code>
+          后 grid 就没有 toolbar —— 完全由调用方决定。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 对照表 ================= -->
+  <section class="mb-7 rounded-2xl border border-slate-200 bg-white p-6">
+    <div class="mb-1.5 flex items-center gap-2.5">
+      <span class="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-bold text-slate-700">对比</span>
+      <h2 class="text-lg font-semibold">三句话记住怎么选</h2>
+    </div>
+    <table class="mt-2 w-full border-collapse text-[13.5px]">
+      <thead>
+        <tr>
+          <th class="bg-slate-50 px-3 py-2.5 text-left text-xs font-semibold tracking-wider text-slate-500">能力</th>
+          <th class="bg-slate-50 px-3 py-2.5 text-left text-xs font-semibold tracking-wider text-slate-500">A · ng-content</th>
+          <th class="bg-slate-50 px-3 py-2.5 text-left text-xs font-semibold tracking-wider text-slate-500">B · TemplateRef</th>
+          <th class="bg-slate-50 px-3 py-2.5 text-left text-xs font-semibold tracking-wider text-slate-500">C · 注册指令</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="border-b border-slate-200 px-3 py-2.5 align-top leading-relaxed">调用方体验</td>
+          <td class="border-b border-slate-200 px-3 py-2.5 align-top leading-relaxed">直接写 HTML，最自然</td>
+          <td class="border-b border-slate-200 px-3 py-2.5 align-top leading-relaxed">要手动定义 <code class="code-inline">#xxx</code>，稍绕</td>
+          <td class="border-b border-slate-200 px-3 py-2.5 align-top leading-relaxed">写 <code class="code-inline">ng-template</code> + 位置标记，接近 dx-item</td>
+        </tr>
+        <tr>
+          <td class="border-b border-slate-200 px-3 py-2.5 align-top leading-relaxed">可延迟 / 挪位置 / 渲染多遍</td>
+          <td class="border-b border-slate-200 px-3 py-2.5 align-top leading-relaxed text-red-600">✕ 静态投影，不能动</td>
+          <td class="border-b border-slate-200 px-3 py-2.5 align-top leading-relaxed font-semibold text-green-600">✓ 蓝图在手，随便渲染</td>
+          <td class="border-b border-slate-200 px-3 py-2.5 align-top leading-relaxed font-semibold text-green-600">✓ 收集的正是 TemplateRef</td>
+        </tr>
+        <tr>
+          <td class="border-b border-slate-200 px-3 py-2.5 align-top leading-relaxed">不限数量、自动收集</td>
+          <td class="border-b border-slate-200 px-3 py-2.5 align-top leading-relaxed text-red-600">✕ 固定两个槽</td>
+          <td class="border-b border-slate-200 px-3 py-2.5 align-top leading-relaxed text-red-600">✕ 固定 @Input</td>
+          <td class="border-b border-slate-200 px-3 py-2.5 align-top leading-relaxed font-semibold text-green-600">✓ 指令自动注册/注销</td>
+        </tr>
+        <tr>
+          <td class="border-b border-slate-200 px-3 py-2.5 align-top leading-relaxed">组件侧复杂度</td>
+          <td class="border-b border-slate-200 px-3 py-2.5 align-top leading-relaxed">几乎为零</td>
+          <td class="border-b border-slate-200 px-3 py-2.5 align-top leading-relaxed">两个 @Input</td>
+          <td class="border-b border-slate-200 px-3 py-2.5 align-top leading-relaxed">register + 按位置 &#64;for</td>
+        </tr>
+        <tr>
+          <td class="border-b border-slate-200 px-3 py-2.5 align-top leading-relaxed">适合场景</td>
+          <td class="border-b border-slate-200 px-3 py-2.5 align-top leading-relaxed">简单排布，不用溢出</td>
+          <td class="border-b border-slate-200 px-3 py-2.5 align-top leading-relaxed">溢出菜单、二次渲染</td>
+          <td class="border-b border-slate-200 px-3 py-2.5 align-top leading-relaxed">完整 toolbar / 动态项生态</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ================= 事件日志 ================= -->
+  <section class="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+    <div class="mb-2.5 flex items-baseline justify-between gap-3 text-sm font-semibold">
+      <span>📋 事件日志</span>
+      <span class="text-xs font-normal text-slate-500">三个 Demo 共享同一份状态 → 插槽里的组件 / 事件 / 绑定完全正常</span>
+    </div>
+    @if (log().length === 0) {
+      <p class="text-[13px] text-slate-400">点上面的按钮试试 —— 每次操作都会记在这里。</p>
+    } @else {
+      <ul class="m-0 list-none p-0">
+        @for (line of log(); track $index) {
+          <li class="mb-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-2 font-mono text-[12.5px] text-slate-700 first:border-indigo-200">{{ line }}</li>
+        }
+      </ul>
+    }
+  </section>
+
+  <footer class="mt-7 flex flex-wrap items-center gap-2 text-[13px] text-slate-500">
+    <code class="code-inline">ng-content = 直接投影 DOM</code>
+    <span>·</span>
+    <code class="code-inline">TemplateRef + ngTemplateOutlet = 拿到渲染蓝图</code>
+    <span>·</span>
+    <code class="code-inline">+ 自动注册指令 = 不限数量、带位置的可扩展项</code>
+    <span>·</span>
+    <code class="code-inline">+ dxo-* 配置指令 = 不渲染 DOM，控制宿主内部组件</code>
+  </footer>
+</div>

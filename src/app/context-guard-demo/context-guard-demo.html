@@ -1,0 +1,301 @@
+<div class="mx-auto max-w-[1080px] px-6 py-10 pb-16 font-sans text-slate-900">
+  <!-- ================= Hero ================= -->
+  <header class="mb-10">
+    <p class="mb-2 text-[13px] font-semibold uppercase tracking-wider text-indigo-600">Angular v21+ · Standalone · 模板类型安全</p>
+    <h1 class="mb-3 text-[34px] font-medium leading-tight tracking-tight">ngTemplateContextGuard 测试页</h1>
+    <p class="max-w-[760px] text-[15px] leading-relaxed text-slate-600">
+      给自定义表格插槽 / 单元格模板里的 <code class="code-inline">let-xxx</code> 变量做
+      <strong>编译期类型守卫</strong>，消除 <code class="code-inline">any</code>。
+      运行时不会执行、打包后直接被擦除 —— 它只告诉 IDE / TS 编译器
+      <code class="code-inline">&lt;ng-template&gt;</code> 渲染时上下文对象的准确类型。
+      本页用「基金管理系统」的场景实测：普通版、泛型通用版、上下文扩展、插槽事件，全部可交互。
+    </p>
+  </header>
+
+  <!-- ================= Demo 1：普通版（FundRow） ================= -->
+  <section class="mb-7 rounded-2xl border border-slate-200 bg-white p-6">
+    <div class="mb-1.5 flex items-center gap-2.5">
+      <span class="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-bold text-blue-700">演示 1</span>
+      <h2 class="text-lg font-semibold">普通版：基金表格行插槽 <span class="text-[13px] font-normal text-slate-400">· 标记指令 + ngTemplateContextGuard</span></h2>
+    </div>
+    <p class="mb-4 text-sm leading-relaxed text-slate-600">
+      父组件投影一个 <code class="code-inline">&lt;ng-template appFundRowTpl let-fund let-idx="rowIndex"&gt;</code>，
+      表格内部用 <code class="code-inline">ngTemplateOutlet</code> 逐行渲染。
+      守卫让 <code class="code-inline">fund</code> 自动推断为 <code class="code-inline">FundRow</code>：
+      写 <code class="code-inline">fund.fundCode / fund.nav</code> 时有自动补全，写错属性直接编译报错。
+    </p>
+
+    <div class="grid grid-cols-[420px_1fr] gap-4.5 max-lg:grid-cols-1">
+      <div class="min-w-0 space-y-4">
+        <div class="min-w-0 overflow-hidden rounded-xl bg-slate-900">
+          <div class="bg-slate-800 px-3.5 py-2 text-xs font-semibold tracking-wider text-slate-400">调用方怎么写（父组件）</div>
+          <pre class="m-0 overflow-x-auto p-3.5 font-mono text-[12.5px] leading-relaxed text-slate-200"><code>{{ code.fundUsage }}</code></pre>
+        </div>
+        <div class="min-w-0 overflow-hidden rounded-xl bg-slate-900">
+          <div class="bg-slate-800 px-3.5 py-2 text-xs font-semibold tracking-wider text-slate-400">标记指令 + 守卫（核心）</div>
+          <pre class="m-0 overflow-x-auto p-3.5 font-mono text-[12.5px] leading-relaxed text-slate-200"><code>{{ code.fundGuard }}</code></pre>
+        </div>
+        <div class="min-w-0 overflow-hidden rounded-xl bg-slate-900">
+          <div class="bg-slate-800 px-3.5 py-2 text-xs font-semibold tracking-wider text-slate-400">表格内部渲染逻辑</div>
+          <pre class="m-0 overflow-x-auto p-3.5 font-mono text-[12.5px] leading-relaxed text-slate-200"><code>{{ code.fundRender }}</code></pre>
+        </div>
+      </div>
+
+      <div class="min-w-0">
+        <div class="mb-2.5 flex flex-wrap items-center gap-2">
+          <button class="btn btn-primary" (click)="addFund()">＋ 新增基金</button>
+          <button class="btn {{ passAllRows() ? 'btn-primary' : '' }}" (click)="passAllRows.set(!passAllRows())">
+            {{ passAllRows() ? '✓ 已传 allRows（完整数组）' : '开启 allRows（完整数组）' }}
+          </button>
+          <span class="text-xs text-slate-400">← 增行验证「插槽执行 N 次」；开关验证「类型与运行时同步」</span>
+        </div>
+        <div class="mb-2.5 text-[13px] font-semibold text-slate-700">现场效果 —— 插槽内容完全由调用方定义</div>
+        <div class="overflow-hidden rounded-xl border border-slate-200">
+          <app-fund-table [data]="funds()" [passAllRows]="passAllRows()">
+            <ng-template appFundRowTpl let-fund let-idx="rowIndex" let-all="allRows">
+              <div class="flex items-center justify-between gap-3">
+                <div class="min-w-0">
+                  <div class="font-medium text-slate-800">{{ fund.fundName }}</div>
+                  <div class="text-xs text-slate-500">
+                    NAV {{ fund.nav.toFixed(3) }} · 行索引 {{ idx }}
+                    @if (all) {
+                      <span class="text-green-600">· 数组共 {{ all.length }} 行</span>
+                    } @else {
+                      <span class="text-slate-400">· （未开启 allRows）</span>
+                    }
+                  </div>
+                </div>
+                <button class="btn" (click)="inspect(fund)">查看</button>
+              </div>
+            </ng-template>
+          </app-fund-table>
+        </div>
+        <p class="mt-3 text-[13px] leading-relaxed text-slate-500">
+          ✅ <code class="code-inline">fund</code> 是 <code class="code-inline">FundRow</code> 而非 <code class="code-inline">any</code>：
+          「查看」按钮的参数类型就是 <code class="code-inline">FundRow</code>；若把
+          <code class="code-inline">fund.nav</code> 拼错，<code class="code-inline">ng build</code> 会直接报错（strictTemplates）。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= Demo 2：泛型通用版 ================= -->
+  <section class="mb-7 rounded-2xl border border-slate-200 bg-white p-6">
+    <div class="mb-1.5 flex items-center gap-2.5">
+      <span class="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-bold text-green-700">演示 2</span>
+      <h2 class="text-lg font-semibold">泛型通用版：GridRowTplDirective&lt;TRow&gt; <span class="text-[13px] font-normal text-slate-400">· 同一指令复用任意行类型</span></h2>
+    </div>
+    <p class="mb-4 text-sm leading-relaxed text-slate-600">
+      换成第二种行类型 <code class="code-inline">Transaction</code>（交易流水），
+      指令、组件一行不改：<code class="code-inline">TRow</code> 从
+      <code class="code-inline">[data]</code> 自动推断，<code class="code-inline">let-tx</code> 随之获得精确类型。
+      DevExtreme <code class="code-inline">dxCellTemplate</code> 自定义单元格模板采用完全相同的模式。
+    </p>
+
+    <div class="grid grid-cols-[420px_1fr] gap-4.5 max-lg:grid-cols-1">
+      <div class="min-w-0 space-y-4">
+        <div class="min-w-0 overflow-hidden rounded-xl bg-slate-900">
+          <div class="bg-slate-800 px-3.5 py-2 text-xs font-semibold tracking-wider text-slate-400">泛型指令（通用样板）</div>
+          <pre class="m-0 overflow-x-auto p-3.5 font-mono text-[12.5px] leading-relaxed text-slate-200"><code>{{ code.genericGuard }}</code></pre>
+        </div>
+        <div class="min-w-0 overflow-hidden rounded-xl bg-slate-900">
+          <div class="bg-slate-800 px-3.5 py-2 text-xs font-semibold tracking-wider text-slate-400">调用方怎么写（换一种行类型）</div>
+          <pre class="m-0 overflow-x-auto p-3.5 font-mono text-[12.5px] leading-relaxed text-slate-200"><code>{{ code.genericUsage }}</code></pre>
+        </div>
+      </div>
+
+      <div class="min-w-0">
+        <div class="mb-2.5 text-[13px] font-semibold text-slate-700">现场效果 —— 交易流水表格（复用同一泛型指令）</div>
+        <div class="overflow-hidden rounded-xl border border-slate-200">
+          <app-generic-grid [data]="txns()" rowTypeLabel="Transaction">
+            <ng-template appGridRowTpl let-tx let-idx="rowIndex">
+              <div class="flex items-center justify-between gap-3">
+                <div class="flex items-center gap-2.5">
+                  <span
+                    class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium {{ tx.action === '申购' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700' }}"
+                  >{{ tx.action }}</span>
+                  <span class="font-mono text-slate-600">{{ tx.fundCode }}</span>
+                  <span class="text-slate-700">¥{{ tx.amount.toFixed(2) }}
+                    <span class="text-xs text-slate-400">（费 {{ tx.fee }}）</span>
+                  </span>
+                </div>
+                <button class="btn" (click)="cancel(tx)">撤单</button>
+              </div>
+            </ng-template>
+          </app-generic-grid>
+        </div>
+        <p class="mt-3 text-[13px] leading-relaxed text-slate-500">
+          ✅ 「撤单」按钮参数类型是 <code class="code-inline">Transaction</code>；
+          表格组件 <code class="code-inline">GenericGridComponent&lt;TRow&gt;</code> 和指令都是泛型，
+          换任何行类型都能复用，无需复制代码。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 关键逻辑拆解 ================= -->
+  <section class="mb-7 rounded-2xl border border-slate-200 bg-white p-6">
+    <div class="mb-1.5 flex items-center gap-2.5">
+      <span class="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-bold text-amber-700">拆解</span>
+      <h2 class="text-lg font-semibold">谁控制运行时数据？<span class="text-[13px] font-normal text-slate-400">· 两条线各司其职，必须同步</span></h2>
+    </div>
+    <div class="grid gap-4 md:grid-cols-3">
+      <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+        <div class="mb-1 text-[13px] font-semibold text-slate-700">① 运行时数据</div>
+        <p class="text-[13px] leading-relaxed text-slate-600">
+          <code class="code-inline">[ngTemplateOutletContext]</code> 在表格组件内部，
+          决定运行时传给模板什么值：单行 <code class="code-inline">row</code> → <code class="code-inline">$implicit</code>，
+          下标 → <code class="code-inline">rowIndex</code>。
+        </p>
+      </div>
+      <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+        <div class="mb-1 text-[13px] font-semibold text-slate-700">② 编译期类型</div>
+        <p class="text-[13px] leading-relaxed text-slate-600">
+          <code class="code-inline">ngTemplateContextGuard</code> 只描述类型、不控制运行时数据。
+          告诉 TS 编译器这些变量的类型，让 IDE 补全和校验生效。
+        </p>
+      </div>
+      <div class="rounded-xl border border-red-50 bg-red-50/60 p-4">
+        <div class="mb-1 text-[13px] font-semibold text-red-700">⚠️ 两条线必须对齐</div>
+        <p class="text-[13px] leading-relaxed text-red-700/90">
+          类型和实际运行数据不一致 = 「类型说谎」：编译期看起来合法，运行时空值 / 缺字段。
+          本项目规范：上下文类型单独抽离，<code class="code-inline">rowContext()</code> 返回该类型，保证永远同步。
+        </p>
+      </div>
+    </div>
+    <p class="mt-4 text-[13px] leading-relaxed text-slate-500">
+      为什么插槽拿到的是单行 <code class="code-inline">FundRow</code> 而不是 <code class="code-inline">FundRow[]</code>？
+      父组件传入数组 → 表格 <code class="code-inline">&#64;for</code> 逐行迭代 → 每次循环把单行对象放入
+      <code class="code-inline">$implicit</code> → 插槽被执行 N 次，每次上下文是单条记录（点「新增基金」可验证）。
+    </p>
+  </section>
+
+  <!-- ================= 坑 & 约束清单 ================= -->
+  <section class="mb-7 rounded-2xl border border-slate-200 bg-white p-6">
+    <div class="mb-1.5 flex items-center gap-2.5">
+      <span class="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-bold text-red-700">重点</span>
+      <h2 class="text-lg font-semibold">坑 &amp; 约束清单 <span class="text-[13px] font-normal text-slate-400">· 项目落地踩坑</span></h2>
+    </div>
+    <table class="mt-2 w-full border-collapse text-[13.5px]">
+      <thead>
+        <tr>
+          <th class="bg-slate-50 px-3 py-2.5 text-left text-xs font-semibold tracking-wider text-slate-500">问题</th>
+          <th class="bg-slate-50 px-3 py-2.5 text-left text-xs font-semibold tracking-wider text-slate-500">说明</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="border-b border-slate-200 px-3 py-2.5 align-top font-semibold text-red-600">❗ 守卫只能在 Directive</td>
+          <td class="border-b border-slate-200 px-3 py-2.5 align-top leading-relaxed">Component 不能挂载 <code class="code-inline">ngTemplateContextGuard</code>，必须单独写标记指令（如 <code class="code-inline">appFundRowTpl</code>）作为模板占位标记。</td>
+        </tr>
+        <tr>
+          <td class="border-b border-slate-200 px-3 py-2.5 align-top font-semibold text-red-600">❗ 守卫是编译期</td>
+          <td class="border-b border-slate-200 px-3 py-2.5 align-top leading-relaxed">函数体不会运行，不要写业务逻辑；<code class="code-inline">return true</code> 固定写法。</td>
+        </tr>
+        <tr>
+          <td class="border-b border-slate-200 px-3 py-2.5 align-top font-semibold text-red-600">❗ 类型与运行时必须对齐</td>
+          <td class="border-b border-slate-200 px-3 py-2.5 align-top leading-relaxed">Context TS 类型必须和 <code class="code-inline">ngTemplateOutletContext</code> 实际对象保持一致，否则类型说谎。</td>
+        </tr>
+        <tr>
+          <td class="border-b border-slate-200 px-3 py-2.5 align-top font-semibold text-red-600">❗ 泛型参数对齐</td>
+          <td class="border-b border-slate-200 px-3 py-2.5 align-top leading-relaxed">指令泛型必须和守卫泛型保持同一个 <code class="code-inline">TRow</code>，否则类型推断失效。</td>
+        </tr>
+        <tr>
+          <td class="border-b border-slate-200 px-3 py-2.5 align-top font-semibold text-red-600">❗ 不能忘记 track</td>
+          <td class="border-b border-slate-200 px-3 py-2.5 align-top leading-relaxed">v21 的 <code class="code-inline">&#64;for</code> 强制 <code class="code-inline">track</code>，表格循环必须加上。</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ================= 和相关概念对比 ================= -->
+  <section class="mb-7 rounded-2xl border border-slate-200 bg-white p-6">
+    <div class="mb-1.5 flex items-center gap-2.5">
+      <span class="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-bold text-slate-700">对比</span>
+      <h2 class="text-lg font-semibold">和相关概念的关系</h2>
+    </div>
+    <table class="mt-2 w-full border-collapse text-[13.5px]">
+      <thead>
+        <tr>
+          <th class="bg-slate-50 px-3 py-2.5 text-left text-xs font-semibold tracking-wider text-slate-500">概念</th>
+          <th class="bg-slate-50 px-3 py-2.5 text-left text-xs font-semibold tracking-wider text-slate-500">关系</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="border-b border-slate-200 px-3 py-2.5 align-top font-semibold">toSignal / Zoneless</td>
+          <td class="border-b border-slate-200 px-3 py-2.5 align-top leading-relaxed">完全独立。Zoneless 只关心 Signal 更新驱动 UI；守卫只管 <code class="code-inline">let-xxx</code> 的 TypeScript 类型。两者互不影响。</td>
+        </tr>
+        <tr>
+          <td class="border-b border-slate-200 px-3 py-2.5 align-top font-semibold">&#64;if / &#64;for 内置控制流</td>
+          <td class="border-b border-slate-200 px-3 py-2.5 align-top leading-relaxed">内置自带类型推断，不需要手动写守卫；仅自定义插槽、自定义结构指令才需要。</td>
+        </tr>
+        <tr>
+          <td class="border-b border-slate-200 px-3 py-2.5 align-top font-semibold">DevExtreme dxCellTemplate</td>
+          <td class="border-b border-slate-200 px-3 py-2.5 align-top leading-relaxed">底层原理完全一致：内置指令携带 <code class="code-inline">ngTemplateContextGuard</code>，所以 <code class="code-inline">let-data</code> 自带行类型。</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ================= FAQ ================= -->
+  <section class="mb-7 rounded-2xl border border-slate-200 bg-white p-6">
+    <div class="mb-1.5 flex items-center gap-2.5">
+      <span class="inline-flex items-center rounded-full bg-indigo-100 px-2.5 py-0.5 text-xs font-bold text-indigo-700">FAQ</span>
+      <h2 class="text-lg font-semibold">常见问题</h2>
+    </div>
+    <div class="space-y-2.5">
+      <details class="group rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+        <summary class="cursor-pointer text-[13.5px] font-semibold text-slate-800">Q：可以直接在组件接收 TemplateRef，不写指令吗？</summary>
+        <p class="mt-2 text-[13px] leading-relaxed text-slate-600">
+          A：不行。<code class="code-inline">ngTemplateContextGuard</code> 只能挂载到 Directive。
+          没有标记指令，TS 无法推断模板上下文类型，<code class="code-inline">let-xxx</code> 变成 <code class="code-inline">any</code>。
+          变体：组件可以 <code class="code-inline">&#64;Input</code> 显式接收 <code class="code-inline">TemplateRef</code>，
+          但守卫仍必须写在标记指令上。
+        </p>
+      </details>
+      <details class="group rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+        <summary class="cursor-pointer text-[13.5px] font-semibold text-slate-800">Q：我想把整个数组传给插槽怎么做？</summary>
+        <p class="mt-2 text-[13px] leading-relaxed text-slate-600">
+          A：扩展上下文类型，加一个字段（本页演示 1 的 <code class="code-inline">allRows</code>）：
+          <code class="code-inline">FundRowTemplateContext</code> 增加 <code class="code-inline">allRows?: FundRow[]</code>，
+          表格内部 <code class="code-inline">rowContext()</code> 同步构造，模板 <code class="code-inline">let-all="allRows"</code> 使用。
+          开启演示 1 的开关即可现场验证。
+        </p>
+      </details>
+      <details class="group rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+        <summary class="cursor-pointer text-[13.5px] font-semibold text-slate-800">Q：Angular v21 是否废弃该 API？</summary>
+        <p class="mt-2 text-[13px] leading-relaxed text-slate-600">
+          A：没有废弃。新控制流（&#64;if / &#64;for）不替代自定义插槽场景，<code class="code-inline">ngTemplateContextGuard</code> 仍是官方标准方案。
+        </p>
+      </details>
+    </div>
+  </section>
+
+  <!-- ================= 事件日志 ================= -->
+  <section class="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+    <div class="mb-2.5 flex items-baseline justify-between gap-3 text-sm font-semibold">
+      <span>📋 事件日志</span>
+      <span class="text-xs font-normal text-slate-500">插槽内的按钮 / 参数类型全部正常 —— let-xxx 不是 any 的直接证据</span>
+    </div>
+    @if (log().length === 0) {
+      <p class="text-[13px] text-slate-400">点上面的「查看 / 撤单 / 新增基金」试试 —— 每次操作都会记在这里。</p>
+    } @else {
+      <ul class="m-0 list-none p-0">
+        @for (line of log(); track $index) {
+          <li class="mb-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-2 font-mono text-[12.5px] text-slate-700 first:border-indigo-200">{{ line }}</li>
+        }
+      </ul>
+    }
+  </section>
+
+  <footer class="mt-7 flex flex-wrap items-center gap-2 text-[13px] text-slate-500">
+    <code class="code-inline">标记指令 + ngTemplateContextGuard</code>
+    <span>·</span>
+    <code class="code-inline">$implicit 是内置特殊属性</code>
+    <span>·</span>
+    <code class="code-inline">守卫是编译期，运行时不执行</code>
+    <span>·</span>
+    <code class="code-inline">类型与 ngTemplateOutletContext 必须同步</code>
+  </footer>
+</div>
