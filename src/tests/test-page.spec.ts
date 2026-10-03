@@ -4,7 +4,7 @@ import {
   provideHttpClientTesting,
 } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { TestPage } from './test-page';
+import { TestPage } from '../app/test-page/test-page';
 
 describe('TestPage（API 测试页）', () => {
   let http: HttpTestingController;

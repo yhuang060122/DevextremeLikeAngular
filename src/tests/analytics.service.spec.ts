@@ -1,7 +1,7 @@
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
-import { AnalyticsService } from './analytics.service';
+import { AnalyticsService } from '../app/analytics/analytics.service';
 
 @Component({ template: '' })
 class DummyComponent {}

@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { App } from './app';
+import { App } from '../app/app';
 
 /**
  * App 根组件测试：应用模板已改为「导航 + router-outlet」结构，

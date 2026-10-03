@@ -4,7 +4,7 @@ import {
   provideHttpClientTesting,
 } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { LogViewer } from './log-viewer';
+import { LogViewer } from '../app/logs/log-viewer';
 
 function emptyPage() {
   return { items: [], total: 0, pageNumber: 1, pageSize: 25, totalPages: 1 };

@@ -52,6 +52,20 @@ public sealed class AnalyticsEventLogListItem
     public string? PropertiesJson { get; set; }
 }
 
+// ------------------------------------------------------------
+// Demo 级登录 / 登出 DTO（仅为演示 Trace-Session-Id 全链路。
+// 真实系统请替换为 JWT 认证 DTO；X-Trace-Session-Id 只做日志关联，不做鉴权）
+// ------------------------------------------------------------
+
+/// <summary>Demo 登录请求体。</summary>
+public sealed record LoginRequest(string Username, string Password);
+
+/// <summary>Demo 登录响应：Token 为占位（非真实 JWT），Trace-Session-Id 由响应头下发。</summary>
+public sealed record LoginResponse(string Token, string UserId);
+
+/// <summary>Demo 登出响应：返回本次按入站头删除的 Trace-Session-Id。</summary>
+public sealed record LogoutResponse(string? TraceSessionId, bool Deleted);
+
 /// <summary>分页结果：对齐前端 PagedResult&lt;T&gt;。</summary>
 public sealed class PagedResult<T>
 {

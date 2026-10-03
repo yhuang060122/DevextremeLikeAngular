@@ -6,6 +6,42 @@
     </p>
   </div>
 
+  <div class="rounded border p-4 space-y-2">
+    <h2 class="text-sm font-bold">Trace-Session-Id（demo 演示，方案 A：后端主控）</h2>
+    <p class="text-xs text-gray-500">
+      POST <code>/api/auth/login</code> 成功后，后端通过响应头
+      <code>X-Trace-Session-Id</code> 签发会话级追踪 id；前端拦截器自动捕获，
+      并给后续所有业务 API 请求附加该头（后端日志据此关联同一次登录会话）。
+    </p>
+    <div class="font-mono text-xs rounded bg-gray-100 px-3 py-2 break-all">
+      {{ traceSessionId() ?? '（未登录 / 尚未签发）' }}
+    </div>
+    <div class="flex gap-2">
+      <button
+        type="button"
+        class="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded"
+        (click)="onDemoLogin()"
+        [disabled]="demoBusy()"
+        data-analytics="test-page-demo-login"
+      >
+        {{ demoBusy() ? '处理中…' : 'Demo Login' }}
+      </button>
+      <button
+        type="button"
+        class="bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded"
+        (click)="onDemoLogout()"
+        [disabled]="demoBusy() || !traceSessionId()"
+        data-analytics="test-page-demo-logout"
+      >
+        Demo Logout
+      </button>
+    </div>
+    <p class="text-xs text-gray-400">
+      每个浏览器 tab 独立；F5 刷新后默认丢失（内存存储，见 trace-session.service.ts，
+      可开启 sessionStorage 持久化续链，切勿用 localStorage）。
+    </p>
+  </div>
+
   <button
     type="button"
     class="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded"

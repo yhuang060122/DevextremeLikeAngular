@@ -1,9 +1,9 @@
 import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { FundTableComponent } from './fund-table.component';
-import { GenericGridComponent } from './generic-grid.component';
-import { FundRow, FundRowTplDirective } from './fund-row-tpl.directive';
-import { GridRowTplDirective } from './grid-row-tpl.directive';
+import { FundTableComponent } from '../app/context-guard-demo/fund-table.component';
+import { GenericGridComponent } from '../app/context-guard-demo/generic-grid.component';
+import { FundRow, FundRowTplDirective } from '../app/context-guard-demo/fund-row-tpl.directive';
+import { GridRowTplDirective } from '../app/context-guard-demo/grid-row-tpl.directive';
 
 /**
  * 运行时测试：验证插槽行为（类型安全由 type-asserts.ts + ng build 的 strictTemplates 保证）。

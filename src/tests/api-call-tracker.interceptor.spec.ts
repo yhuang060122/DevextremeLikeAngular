@@ -6,8 +6,8 @@ import {
 } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { AnalyticsService } from './analytics.service';
-import { apiCallTrackerInterceptor } from './api-call-tracker.interceptor';
+import { AnalyticsService } from '../app/analytics/analytics.service';
+import { apiCallTrackerInterceptor } from '../app/analytics/api-call-tracker.interceptor';
 
 describe('apiCallTrackerInterceptor（用 analytics 记录 API 调用）', () => {
   let http: HttpTestingController;

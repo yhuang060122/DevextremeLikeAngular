@@ -1,8 +1,12 @@
+using System.Security.Claims;
 using System.Text.Json;
 using AnalyticsServer.Data;
 using AnalyticsServer.Models;
+using AnalyticsServer.TraceSession;
 using Microsoft.EntityFrameworkCore;
 using Scalar.AspNetCore;
+using Serilog;
+using Serilog.Formatting.Compact;
 
 // ============================================================
 // 简单 analytics 后端（方案一：直写 SQLite，无队列 / Worker）
@@ -14,6 +18,12 @@ using Scalar.AspNetCore;
 //     “让页面不报错”的最小 stub，后续接入真实 API 日志即可替换。
 //
 // 接口调试：启动后访问 http://localhost:5080/scalar/v1（Scalar UI）
+//
+// Trace-Session-Id（方案 A：后端主控）：
+//   - 登录成功（POST /api/auth/login，200）时由 TraceSessionIdMiddleware 签发
+//     X-Trace-Session-Id 响应头，映射写入内存存储（当前单实例），TTL 对齐 access token；
+//   - 前端拦截器捕获该头并给后续请求附加；后端按该 id 关联同一次登录会话的全部日志；
+//   - 仅日志用途，不参与鉴权；登出时按入站头删除映射。
 // ============================================================
 
 var builder = WebApplication.CreateBuilder(args);
@@ -21,16 +31,34 @@ var builder = WebApplication.CreateBuilder(args);
 // 固定端口，配合前端 ng serve 的 proxy.conf.json（/api → localhost:5080）
 builder.WebHost.UseUrls("http://localhost:5080");
 
+// Serilog：结构化 JSON 控制台输出，日志事件带 TraceSessionId / RequestId / UserId 属性
+// （由 TraceSessionIdMiddleware 的作用域注入；handoff 示例日志即此格式）。
+// Enrich.FromLogContext() 是 LogContext.PushProperty 注入日志事件的必要条件。
+builder.Host.UseSerilog((_, cfg) => cfg
+    .MinimumLevel.Information()
+    .Enrich.FromLogContext()
+    .WriteTo.Console(new CompactJsonFormatter()));
+
 var dbPath = Path.Combine(builder.Environment.ContentRootPath, "analytics.db");
 builder.Services.AddDbContext<AnalyticsDbContext>(options =>
     options.UseSqlite($"Data Source={dbPath}"));
 
+// ---- Trace-Session-Id 存储注册 ----
+// 当前为单实例部署：直接用内存存储（重启即清空映射，仅日志关联用途，可接受）。
+// 若未来上多实例，新增共享存储（如 Redis）实现并在 DI 中切换即可，
+// 中间件只依赖 ITraceSessionStore 接口，无需改动。
+builder.Services.AddHttpContextAccessor();
+builder.Services.Configure<TraceSessionOptions>(builder.Configuration.GetSection("TraceSession"));
+builder.Services.AddSingleton<ITraceSessionStore, InMemoryTraceSessionStore>();
+
 // 允许 Angular dev server 跨域（若走前端 proxy 则同源，此配置仅为直连场景兜底）
+// WithExposedHeaders：不暴露该头，浏览器端 Angular 就读不到登录响应里的 X-Trace-Session-Id
 builder.Services.AddCors(options =>
     options.AddPolicy("dev", policy => policy
         .WithOrigins("http://localhost:4200")
         .AllowAnyHeader()
-        .AllowAnyMethod()));
+        .AllowAnyMethod()
+        .WithExposedHeaders(TraceSessionIdMiddleware.HeaderName)));
 
 // OpenAPI 文档（Scalar UI 依赖）
 builder.Services.AddOpenApi();
@@ -38,6 +66,14 @@ builder.Services.AddOpenApi();
 var app = builder.Build();
 
 app.UseCors("dev");
+
+// Trace-Session-Id：先于业务处理，把入站会话 id 推入日志作用域；登录成功时签发新 id。
+// 顺序（handoff）：Logging → TraceSessionIdMiddleware → Authentication → Routing。
+app.UseMiddleware<TraceSessionIdMiddleware>();
+
+// Serilog 请求日志：单行请求日志（HTTP method/path/status/耗时），
+// 位于 TraceSessionIdMiddleware 作用域内，天然带上 TraceSessionId / RequestId / UserId。
+app.UseSerilogRequestLogging();
 
 // Scalar API 调试面板：http://localhost:5080/scalar/v1
 app.MapScalarApiReference();
@@ -227,5 +263,39 @@ app.MapGet("/api/log-query/pipeline-status", () =>
         apiWorkerStaleSec = 0,
         apiLastSuccessAgeSec = 0,
     }));
+
+// ------------------------------------------------------------
+// Demo 级登录 / 登出（仅为演示 Trace-Session-Id 全链路；真实系统替换为 JWT 认证）
+//
+// 登录：
+//   - 设置演示身份（ctx.User），TraceSessionIdMiddleware 在响应完成后读取
+//     NameIdentifier 写入存储，并自动附加 X-Trace-Session-Id 响应头；
+//   - Token 字段只是占位符，不是真实 JWT。
+// 登出：
+//   - 按入站 X-Trace-Session-Id 删除存储映射；关 tab 不发登出时由 TTL 兜底清理。
+// ------------------------------------------------------------
+app.MapPost("/api/auth/login", (LoginRequest req, HttpContext ctx) =>
+{
+    var userId = string.IsNullOrWhiteSpace(req.Username) ? "demo-user" : req.Username;
+
+    // 演示身份：真实系统由 JWT 认证中间件完成，这里仅为让中间件能取到 UserId。
+    ctx.User = new ClaimsPrincipal(new ClaimsIdentity(
+        [new Claim(ClaimTypes.NameIdentifier, userId), new Claim(ClaimTypes.Name, userId)],
+        authenticationType: "demo"));
+
+    return Results.Ok(new LoginResponse(Token: Guid.NewGuid().ToString("N"), UserId: userId));
+});
+
+app.MapPost("/api/auth/logout", async (HttpContext ctx, ITraceSessionStore store) =>
+{
+    var traceSessionId = ctx.Request.Headers[TraceSessionIdMiddleware.HeaderName].FirstOrDefault();
+    var deleted = !string.IsNullOrWhiteSpace(traceSessionId);
+    if (deleted)
+    {
+        await store.DeleteAsync(traceSessionId!);
+    }
+
+    return Results.Ok(new LogoutResponse(TraceSessionId: traceSessionId, Deleted: deleted));
+});
 
 app.Run();
