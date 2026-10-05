@@ -51,11 +51,13 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.Configure<TraceSessionOptions>(builder.Configuration.GetSection("TraceSession"));
 builder.Services.AddSingleton<ITraceSessionStore, InMemoryTraceSessionStore>();
 
-// 允许 Angular dev server 跨域（若走前端 proxy 则同源，此配置仅为直连场景兜底）
-// WithExposedHeaders：不暴露该头，浏览器端 Angular 就读不到登录响应里的 X-Trace-Session-Id
+// 允许前端跨域直连（demo 级开发配置，生产请收紧为明确 Origins）：
+//   - Angular dev server (http://localhost:4200)，走 proxy 时同源，此配置仅为直连场景兜底；
+//   - 独立运行的 jquery-todo 页面（file:// 或任意本地静态端口，如 python -m http.server 8000）。
+// WithExposedHeaders：不暴露该头，浏览器端就读不到登录响应里的 X-Trace-Session-Id。
 builder.Services.AddCors(options =>
     options.AddPolicy("dev", policy => policy
-        .WithOrigins("http://localhost:4200")
+        .AllowAnyOrigin()
         .AllowAnyHeader()
         .AllowAnyMethod()
         .WithExposedHeaders(TraceSessionIdMiddleware.HeaderName)));

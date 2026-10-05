@@ -1,0 +1,261 @@
+/* ============================================================
+   jQuery Todo List — 样式
+   ============================================================ */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --bg: #f1f5f9;
+  --card: #ffffff;
+  --border: #e2e8f0;
+  --text: #1e293b;
+  --text-muted: #64748b;
+  --primary: #4f46e5;
+  --primary-dark: #4338ca;
+  --danger: #ef4444;
+  --danger-light: #fef2f2;
+  --checked: #94a3b8;
+}
+
+body {
+  font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  padding: 3rem 1rem;
+}
+
+.app {
+  width: 100%;
+  max-width: 480px;
+  background: var(--card);
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+  padding: 1.5rem;
+  height: fit-content;
+}
+
+.app__title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 1.25rem;
+  text-align: center;
+}
+
+/* ---- 新增表单 ---- */
+.add-form {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.add-form__input {
+  flex: 1;
+  padding: 0.6rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.95rem;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.add-form__input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
+}
+
+.add-form__btn {
+  padding: 0.6rem 1.1rem;
+  border: none;
+  border-radius: 8px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.add-form__btn:hover {
+  background: var(--primary-dark);
+}
+
+/* ---- 列表 ---- */
+.todo-list {
+  list-style: none;
+  margin-bottom: 1rem;
+}
+
+.todo-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.65rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+  animation: fade-in 0.2s ease;
+}
+
+.todo-item:last-child {
+  border-bottom: none;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.todo-item__checkbox {
+  width: 1.1rem;
+  height: 1.1rem;
+  accent-color: var(--primary);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.todo-item__text {
+  flex: 1;
+  font-size: 0.95rem;
+  word-break: break-word;
+  transition: color 0.15s;
+}
+
+.todo-item.is-completed .todo-item__text {
+  color: var(--checked);
+  text-decoration: line-through;
+}
+
+.todo-item__delete {
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0.2rem 0.4rem;
+  border-radius: 6px;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s, background 0.15s;
+}
+
+.todo-item:hover .todo-item__delete {
+  opacity: 1;
+}
+
+.todo-item__delete:hover {
+  color: var(--danger);
+  background: var(--danger-light);
+}
+
+/* ---- 空状态 ---- */
+.empty-state {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  padding: 1.5rem 0;
+  display: none;
+}
+
+.empty-state.is-visible {
+  display: block;
+}
+
+/* ---- 底部 ---- */
+.app__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.app__filters {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.filter-btn {
+  border: 1px solid transparent;
+  background: none;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  padding: 0.3rem 0.6rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.filter-btn:hover {
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.filter-btn.is-active {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.clear-btn {
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 0.3rem 0.4rem;
+  border-radius: 6px;
+  transition: color 0.15s;
+}
+
+.clear-btn:hover {
+  color: var(--danger);
+  text-decoration: underline;
+}
+
+/* ---- 后端连接状态 ---- */
+.api-status {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px dashed var(--border);
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.api-status__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.api-status.is-online .api-status__dot {
+  background: #22c55e;
+}
+
+.api-status.is-online .api-status__text {
+  color: #15803d;
+}
+
+.api-status.is-offline .api-status__dot {
+  background: #f59e0b;
+}
+
+.api-status.is-offline .api-status__text {
+  color: #b45309;
+}

@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>jQuery Todo List</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <main class="app">
+    <h1 class="app__title">Todo List</h1>
+
+    <!-- 新增输入 -->
+    <form class="add-form" id="add-form" autocomplete="off">
+      <input
+        type="text"
+        id="new-todo"
+        class="add-form__input"
+        placeholder="需要做点什么？"
+        maxlength="200"
+      />
+      <button type="submit" class="add-form__btn">添加</button>
+    </form>
+
+    <!-- 列表 -->
+    <ul class="todo-list" id="todo-list" aria-live="polite"></ul>
+
+    <!-- 空状态 -->
+    <p class="empty-state" id="empty-state">暂无任务，享受清闲时光 ☕</p>
+
+    <!-- 底部：计数 / 过滤 / 清除 -->
+    <footer class="app__footer">
+      <span class="app__counter" id="items-left">0 项待办</span>
+      <div class="app__filters">
+        <button type="button" class="filter-btn is-active" data-filter="all">全部</button>
+        <button type="button" class="filter-btn" data-filter="active">未完成</button>
+        <button type="button" class="filter-btn" data-filter="completed">已完成</button>
+      </div>
+      <button type="button" class="clear-btn" id="clear-completed">清除已完成</button>
+    </footer>
+
+    <!-- 后端连接状态（AJAX 探活结果） -->
+    <p class="api-status" id="api-status">
+      <span class="api-status__dot"></span>
+      <span class="api-status__text">正在检查后端连接…</span>
+    </p>
+  </main>
+
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
