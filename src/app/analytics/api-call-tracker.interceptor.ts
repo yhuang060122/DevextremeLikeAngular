@@ -79,6 +79,9 @@ export const apiCallTrackerInterceptor: HttpInterceptorFn = (req, next) => {
             url: req.urlWithParams,
             apiEndpoint,
             apiVersion,
+            // 分析层分类：type=api（API 调用），category=api（接口域）
+            eventType: 'api',
+            eventCategory: 'api',
             status: event.status,
             ok: true,
             durationMs: Math.round(performance.now() - started),
@@ -97,6 +100,8 @@ export const apiCallTrackerInterceptor: HttpInterceptorFn = (req, next) => {
           url: req.urlWithParams,
           apiEndpoint,
           apiVersion,
+          eventType: 'api',
+          eventCategory: 'api',
           status: error.status,
           ok: false,
           error: errorMessage,

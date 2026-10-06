@@ -71,6 +71,9 @@
       url: url,
       apiEndpoint: readApiEndpoint(url),
       apiVersion: readApiVersion(url),
+      // 分析层分类：type=api（API 调用），category=api（接口域）
+      eventType: "api",
+      eventCategory: "api",
       status: outcome.status,
       ok: outcome.ok,
       durationMs: outcome.durationMs,

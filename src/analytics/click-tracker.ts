@@ -61,6 +61,22 @@ function readElementLabel(element: Element): string | null {
   return ownText ? ownText.slice(0, LABEL_MAX_LENGTH) : null;
 }
 
+/**
+ * 从 data-analytics 标记值推导业务类别（eventCategory）。
+ *
+ * 约定：标记值以业务域前缀开头，`{domain}-{action}`。
+ *   filter*   → filter（筛选/视图切换，如 todo-filter-active）
+ *   nav-*     → navigation（导航链接，如 nav-logs）
+ *   todo-*    → task（任务管理，如 todo-add-btn / todo-toggle）
+ *   其它      → ui（界面组件交互，默认）
+ */
+function readCategory(analyticsName: string): string {
+  if (analyticsName.includes('filter')) return 'filter';
+  if (analyticsName.startsWith('nav-')) return 'navigation';
+  if (analyticsName.startsWith('todo-')) return 'task';
+  return 'ui';
+}
+
 export class ClickTracker extends BaseTracker {
   private readonly recorder: EventRecorder;
   private readonly attribute: string;
@@ -108,6 +124,11 @@ export class ClickTracker extends BaseTracker {
       element: name,
 
       tag: element.tagName,
+
+      // 分析层分类：type=来源机制，category=业务域（见设计文档）
+      eventType: 'click',
+
+      eventCategory: readCategory(name),
 
       // 元素标识四件套：id / name / type / label
       id: element.id || null,

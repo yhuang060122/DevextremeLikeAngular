@@ -66,6 +66,12 @@ describe('AnalyticsService（接入 Angular 应用）', () => {
     const names = batch.events.map((e) => e.event.name);
     expect(names).toContain('/logs');
 
+    // 页面事件带分析层分类：eventType=page / eventCategory=navigation
+    const pageEvent = batch.events.find((e) => e.event.name === '/logs');
+    expect(pageEvent).toBeDefined();
+    expect(pageEvent?.event.properties['eventType']).toBe('page');
+    expect(pageEvent?.event.properties['eventCategory']).toBe('navigation');
+
     // 事件 sessionId 应取当前 tab 的 Trace-Session-Id
     const sessionIds = new Set(batch.events.map((e) => e.sessionId));
     expect(sessionIds.size).toBe(1);
@@ -117,6 +123,9 @@ describe('AnalyticsService（接入 Angular 应用）', () => {
     expect(clicked?.event.properties['name']).toBe('demo-action');
     expect(clicked?.event.properties['type']).toBe('submit');
     expect(clicked?.event.properties['label']).toBe('Click me');
+    // 分析层分类：demo-btn 无业务域前缀 → eventType=click / category=ui
+    expect(clicked?.event.properties['eventType']).toBe('click');
+    expect(clicked?.event.properties['eventCategory']).toBe('ui');
   });
 
   it('点击元素的 label 优先取 aria-label，而非可见文本', async () => {

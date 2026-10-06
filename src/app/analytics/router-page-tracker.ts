@@ -26,13 +26,13 @@ export function routerPageProbe(router: Router): ProbeFactory {
         // 若启动时导航已经完成（例如服务被延迟实例化），
         // 补记当前页面，避免漏掉第一个 page 事件。
         if (router.navigated) {
-          recorder.page(router.url, { title: document.title });
+          recorder.page(router.url, pageProps());
         }
 
         subscription = router.events
           .pipe(filter((e): e is NavigationEnd => e instanceof NavigationEnd))
           .subscribe((navEnd) => {
-            recorder.page(navEnd.urlAfterRedirects, { title: document.title });
+            recorder.page(navEnd.urlAfterRedirects, pageProps());
           });
       },
 
@@ -41,5 +41,14 @@ export function routerPageProbe(router: Router): ProbeFactory {
         subscription = undefined;
       },
     };
+  };
+}
+
+/** 页面浏览事件的属性：分析层分类 page / navigation。 */
+function pageProps(): { title: string; eventType: 'page'; eventCategory: 'navigation' } {
+  return {
+    title: document.title,
+    eventType: 'page',
+    eventCategory: 'navigation',
   };
 }

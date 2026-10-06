@@ -46,6 +46,36 @@
       (input)="eventNameContains.set($any($event.target).value)"
     />
 
+    <span class="text-gray-400 text-xs">｜</span>
+
+    <select
+      class="input"
+      [value]="eventTypePropFilter()"
+      (change)="eventTypePropFilter.set($any($event.target).value)"
+      aria-label="属性事件类型"
+    >
+      <option value="">全部 Type</option>
+      <option value="page">page 页面浏览</option>
+      <option value="click">click 点击交互</option>
+      <option value="business">business 业务动作</option>
+      <option value="api">api API 调用</option>
+      <option value="error">error 错误（预留）</option>
+    </select>
+    <select
+      class="input"
+      [value]="eventCategoryPropFilter()"
+      (change)="eventCategoryPropFilter.set($any($event.target).value)"
+      aria-label="属性事件类别"
+    >
+      <option value="">全部 Category</option>
+      <option value="navigation">navigation 导航</option>
+      <option value="task">task 任务管理</option>
+      <option value="filter">filter 筛选视图</option>
+      <option value="ui">ui 界面交互</option>
+      <option value="api">api 接口域</option>
+      <option value="system">system 系统（预留）</option>
+    </select>
+
     <button class="btn btn-primary" type="button" (click)="onSearch()" [disabled]="loading()">
       {{ loading() ? '查询中…' : '查询' }}
     </button>

@@ -605,7 +605,9 @@ var AnalyticsSDK = (() => {
       this.recorder.page(
         path,
         {
-          title: document.title
+          title: document.title,
+          eventType: "page",
+          eventCategory: "navigation"
         }
       );
     }
@@ -621,6 +623,8 @@ var AnalyticsSDK = (() => {
           // to read `document.title` itself, which is the exact
           // duplication the read-then-spread form exists to stop.
           ...readPageContext(),
+          eventType: "page",
+          eventCategory: "navigation",
           durationMs: duration
         }
       );
@@ -645,6 +649,12 @@ var AnalyticsSDK = (() => {
     const ownText = element.textContent?.trim();
     return ownText ? ownText.slice(0, LABEL_MAX_LENGTH) : null;
   }
+  function readCategory(analyticsName) {
+    if (analyticsName.includes("filter")) return "filter";
+    if (analyticsName.startsWith("nav-")) return "navigation";
+    if (analyticsName.startsWith("todo-")) return "task";
+    return "ui";
+  }
   var ClickTracker = class extends BaseTracker {
     constructor(recorder, options = {}) {
       super();
@@ -663,6 +673,9 @@ var AnalyticsSDK = (() => {
         this.recorder.track("Element Clicked", {
           element: name,
           tag: element.tagName,
+          // 分析层分类：type=来源机制，category=业务域（见设计文档）
+          eventType: "click",
+          eventCategory: readCategory(name),
           // 元素标识四件套：id / name / type / label
           id: element.id || null,
           name: element.getAttribute("name") || null,

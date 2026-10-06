@@ -156,6 +156,8 @@ app.MapGet("/api/log-query/analytics", async (
     string? toUtc,
     string? eventType,
     string? eventNameContains,
+    string? eventTypeProp,
+    string? eventCategoryProp,
     int pageNumber = 1,
     int pageSize = 25) =>
 {
@@ -179,6 +181,19 @@ app.MapGet("/api/log-query/analytics", async (
     if (!string.IsNullOrWhiteSpace(eventNameContains))
     {
         query = query.Where(x => x.EventName.Contains(eventNameContains));
+    }
+    // 分析层分类筛选：事件属性 JSON 中的 eventType / eventCategory 字段
+    // （区别于上方 eventType：那是 SDK 底层类型列 track/page）。
+    // System.Text.Json 默认紧凑序列化，键与值无空格，LIKE 匹配精确。
+    if (!string.IsNullOrWhiteSpace(eventTypeProp))
+    {
+        query = query.Where(x => x.PropertiesJson != null
+            && EF.Functions.Like(x.PropertiesJson, $"%\"eventType\":\"{eventTypeProp}\"%"));
+    }
+    if (!string.IsNullOrWhiteSpace(eventCategoryProp))
+    {
+        query = query.Where(x => x.PropertiesJson != null
+            && EF.Functions.Like(x.PropertiesJson, $"%\"eventCategory\":\"{eventCategoryProp}\"%"));
     }
 
     var total = await query.CountAsync();

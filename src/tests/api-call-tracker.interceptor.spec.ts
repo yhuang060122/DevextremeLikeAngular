@@ -65,6 +65,8 @@ describe('apiCallTrackerInterceptor（用 analytics 记录 API 调用）', () =>
     expect(calls[0]['url']).toBe('/api/foo');
     expect(calls[0]['apiEndpoint']).toBe('/api/foo');
     expect(calls[0]['apiVersion']).toBeNull();
+    expect(calls[0]['eventType']).toBe('api');
+    expect(calls[0]['eventCategory']).toBe('api');
     expect(calls[0]['status']).toBe(200);
     expect(calls[0]['ok']).toBe(true);
     expect(typeof calls[0]['durationMs']).toBe('number');
@@ -88,6 +90,8 @@ describe('apiCallTrackerInterceptor（用 analytics 记录 API 调用）', () =>
     expect(calls[0]['method']).toBe('GET');
     expect(calls[0]['url']).toBe('/api/missing');
     expect(calls[0]['apiEndpoint']).toBe('/api/missing');
+    expect(calls[0]['eventType']).toBe('api');
+    expect(calls[0]['eventCategory']).toBe('api');
     expect(calls[0]['status']).toBe(404);
     expect(calls[0]['ok']).toBe(false);
     expect(calls[0]['error_code']).toBe(404);

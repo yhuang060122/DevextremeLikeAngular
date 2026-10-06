@@ -63,14 +63,14 @@ jquery CDN → js/analytics-sdk.js → js/api.js → js/analytics.js → js/app.
 | `js/analytics.js` | 播种会话 id（`sessionStorage['analytics.session']`，SDK 只读不写）；创建 `new AnalyticsSDK.Analytics({ endpoint, batchSize:5, flushInterval:1500, debug:true, probes:[PageTracker, ClickTracker] })` 并 `start()`；暴露 `window.todoAnalytics` |
 | `js/app.js` | 业务事件经 `window.todoAnalytics.track('todo_add' / 'todo_toggle' / 'todo_delete' / 'todo_clear_completed', props)`；勾选框/删除按钮渲染时加 `data-analytics` 属性 |
 
-**四类埋点**（事件模型与 Angular 接入一致，后端 `/logs` 页可查）：
+**四类埋点**（事件模型与 Angular 接入一致，后端 `/logs` 页可查；所有事件带分析层分类 eventType/eventCategory，/logs 页可按其筛选）：
 
-| 类型 | 事件名 | 触发 |
-|---|---|---|
-| 页面浏览 | `page` | PageTracker：加载 / 切后台 / 卸载（含停留时长） |
-| 元素点击 | `Element Clicked` | ClickTracker：点击带 `data-analytics` 的元素（含 element/id/name/type/label/tag/cssClass） |
-| 业务事件 | `todo_*` | app.js 动作 |
-| API 调用 | `Api Call` | api.js `request()`：method/url/apiEndpoint/apiVersion/status/ok/durationMs/页面上下文；失败时含 error_code/error_message/error_track_trace |
+| 类型 | 事件名 | 触发 | 分析层分类 |
+|---|---|---|---|
+| 页面浏览 | `page` | PageTracker：加载 / 切后台 / 卸载（含停留时长） | eventType=page / category=navigation |
+| 元素点击 | `Element Clicked` | ClickTracker：点击带 `data-analytics` 的元素（含 element/id/name/type/label/tag/cssClass） | eventType=click；category 按 data-analytics 前缀推导（nav-*→navigation、todo-*→task、filter-*→filter、其余→ui） |
+| 业务事件 | `todo_*` | app.js 动作 | eventType=business / category=task |
+| API 调用 | `Api Call` | api.js `request()`：method/url/apiEndpoint/apiVersion/status/ok/durationMs/页面上下文；失败时含 error_code/error_message/error_track_trace | eventType=api / category=api |
 
 **离线降级**：后端不可达时状态栏变黄（`api.js` 探活失败），业务事件跳过上报，
 SDK 队列尝试发送失败后静默丢弃，应用功能与 localStorage 完全不受影响。

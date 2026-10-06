@@ -4,10 +4,14 @@ import { Injectable, inject } from '@angular/core';
 export interface LogSearchFilter {
   fromUtc?: string;
   toUtc?: string;
-  /** analytics 事件专用：page / track */
+  /** analytics 事件专用：page / track（SDK 底层类型列） */
   eventType?: 'page' | 'track';
   /** analytics 事件专用：事件名（track 名 / page 路径）模糊匹配 */
   eventNameContains?: string;
+  /** 分析层分类：事件属性中的 eventType（page/click/business/api/error） */
+  eventTypeProp?: string;
+  /** 分析层分类：事件属性中的 eventCategory（navigation/task/filter/ui/api/system） */
+  eventCategoryProp?: string;
   pageNumber: number;
   pageSize: number;
 }
@@ -57,6 +61,8 @@ export class LogQueryService {
     if (filter.toUtc) p = p.set('toUtc', filter.toUtc);
     if (filter.eventType) p = p.set('eventType', filter.eventType);
     if (filter.eventNameContains) p = p.set('eventNameContains', filter.eventNameContains);
+    if (filter.eventTypeProp) p = p.set('eventTypeProp', filter.eventTypeProp);
+    if (filter.eventCategoryProp) p = p.set('eventCategoryProp', filter.eventCategoryProp);
     return p;
   }
 

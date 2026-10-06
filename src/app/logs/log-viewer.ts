@@ -28,6 +28,10 @@ export class LogViewer implements OnInit {
   protected readonly toLocal = signal('');
   protected readonly eventTypeFilter = signal<'' | 'page' | 'track'>('');
   protected readonly eventNameContains = signal('');
+  /** 分析层分类：事件属性 eventType（page/click/business/api/error） */
+  protected readonly eventTypePropFilter = signal('');
+  /** 分析层分类：事件属性 eventCategory（navigation/task/filter/ui/api/system） */
+  protected readonly eventCategoryPropFilter = signal('');
 
   // ---- 列表状态 ----
   protected readonly items = signal<AnalyticsEventLogListItem[]>([]);
@@ -69,6 +73,8 @@ export class LogViewer implements OnInit {
           ...this.currentFilter(),
           eventType: this.eventTypeFilter() || undefined,
           eventNameContains: this.eventNameContains() || undefined,
+          eventTypeProp: this.eventTypePropFilter() || undefined,
+          eventCategoryProp: this.eventCategoryPropFilter() || undefined,
         }),
       );
       this.items.set(res.items);

@@ -66,6 +66,8 @@ export class PageTracker extends BaseTracker {
       path,
       {
         title: document.title,
+        eventType: "page",
+        eventCategory: "navigation",
       }
     );
 
@@ -85,6 +87,9 @@ export class PageTracker extends BaseTracker {
         // to read `document.title` itself, which is the exact
         // duplication the read-then-spread form exists to stop.
         ...readPageContext(),
+
+        eventType: "page",
+        eventCategory: "navigation",
 
         durationMs: duration,
       }

@@ -121,7 +121,7 @@ npm run start     # 即 ng serve，默认 http://localhost:4200
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
 | POST | `/api/analytics/events/batch` | 埋点 SDK 批量上报 `{ events: [...] }` |
-| GET | `/api/log-query/analytics` | analytics 事件分页查询（时间/类型/名称筛选） |
+| GET | `/api/log-query/analytics` | analytics 事件分页查询（时间/类型/名称筛选；另有属性分类筛选 eventTypeProp/eventCategoryProp） |
 | GET | `/api/log-query/api-access` 等 | API 日志 tab 的占位 stub |
 | GET | `/api/test/events` | 联调测试：服务器时间 + 最近事件 |
 | POST | `/api/auth/login` | demo 登录（成功时签发 Trace-Session-Id 响应头） |
@@ -155,10 +155,10 @@ npx esbuild src/analytics/bundle-entry.ts --bundle --format=iife \
 
 | 类型 | 事件名 | 触发 | 说明 |
 | --- | --- | --- | --- |
-| 页面浏览 | `page` | 加载 / 切后台 / 卸载 | PageTracker 探针（含停留时长） |
-| 元素点击 | `Element Clicked` | 点击带 `data-analytics` 属性的元素 | ClickTracker 探针；element/id/name/type/label/tag/cssClass |
-| 业务事件 | `todo_*` | 应用动作 | app.js → SDK `track()` |
-| API 调用 | `Api Call` | 每次业务 API 请求完成 | api.js `request()`；method/url/apiEndpoint/apiVersion/status/ok/durationMs + 失败字段 error_code/error_message/error_track_trace + 页面上下文 |
+| 页面浏览 | `page` | 加载 / 切后台 / 卸载 | PageTracker 探针（含停留时长）；eventType=page / category=navigation |
+| 元素点击 | `Element Clicked` | 点击带 `data-analytics` 属性的元素 | ClickTracker 探针；eventType=click，category 按 `data-analytics` 值推导（nav-*→navigation、todo-*→task、filter-*→filter、其余→ui） |
+| 业务事件 | `todo_*` | 应用动作 | app.js → SDK `track()`；eventType=business / category=task |
+| API 调用 | `Api Call` | 每次业务 API 请求完成 | api.js `request()`；eventType=api / category=api；method/url/apiEndpoint/apiVersion/status/ok/durationMs + 失败字段 error_code/error_message/error_track_trace + 页面上下文 |
 
 **运行**：
 
@@ -296,7 +296,7 @@ Key points:
 | Method | Path | Description |
 | --- | --- | --- |
 | POST | `/api/analytics/events/batch` | Analytics SDK batch upload `{ events: [...] }` |
-| GET | `/api/log-query/analytics` | Paginated analytics event query (time/type/name filters) |
+| GET | `/api/log-query/analytics` | Paginated analytics event query (time/type/name filters; plus property-class filters eventTypeProp/eventCategoryProp) |
 | GET | `/api/log-query/api-access` etc. | Placeholder stubs for the API-logs tab |
 | GET | `/api/test/events` | Smoke test: server time + recent events |
 | POST | `/api/auth/login` | Demo login (issues Trace-Session-Id response header) |
@@ -332,10 +332,10 @@ npx esbuild src/analytics/bundle-entry.ts --bundle --format=iife \
 
 | Type | Event name | Trigger | Notes |
 | --- | --- | --- | --- |
-| Page view | `page` | on load / hide / unload | PageTracker probe (includes dwell time) |
-| Element click | `Element Clicked` | click on an element with a `data-analytics` attribute | ClickTracker probe; element/id/name/type/label/tag/cssClass |
-| Business | `todo_*` | app actions | app.js → SDK `track()` |
-| API call | `Api Call` | on completion of each business API request | api.js `request()`; method/url/apiEndpoint/apiVersion/status/ok/durationMs + error fields error_code/error_message/error_track_trace + page context |
+| Page view | `page` | on load / hide / unload | PageTracker probe (incl. dwell time); eventType=page / category=navigation |
+| Element click | `Element Clicked` | click on an element with a `data-analytics` attribute | ClickTracker probe; eventType=click, category derived from `data-analytics` value (nav-*→navigation, todo-*→task, filter-*→filter, else→ui) |
+| Business | `todo_*` | app actions | app.js → SDK `track()`; eventType=business / category=task |
+| API call | `Api Call` | on completion of each business API request | api.js `request()`; eventType=api / category=api; method/url/apiEndpoint/apiVersion/status/ok/durationMs + error fields error_code/error_message/error_track_trace + page context |
 
 **Run**:
 

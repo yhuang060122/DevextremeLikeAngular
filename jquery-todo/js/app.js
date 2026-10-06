@@ -114,7 +114,12 @@ $(function () {
   function track(name, properties) {
     if (state.online !== true) return;
     if (!window.todoAnalytics) return;
-    window.todoAnalytics.track(name, properties);
+    // 业务事件统一标注分析层分类：type=business（业务动作），
+    // category=task（任务管理，本应用业务事件均为 todo_* 系列）
+    window.todoAnalytics.track(name, $.extend({
+      eventType: "business",
+      eventCategory: "task"
+    }, properties));
   }
 
   /* ---- 操作 ---- */
