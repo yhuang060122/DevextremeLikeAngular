@@ -72,6 +72,11 @@ describe('AnalyticsService（接入 Angular 应用）', () => {
     expect(pageEvent?.event.properties['eventType']).toBe('page');
     expect(pageEvent?.event.properties['eventCategory']).toBe('navigation');
 
+    // 应用元数据随每个事件自动携带（Angular 宿主注入）
+    expect(pageEvent?.event.properties['appName']).toBe('DevextremeLikeDataGrid');
+    expect(pageEvent?.event.properties['appVersion']).toBe('0.0.0');
+    expect(pageEvent?.event.properties['appEnvironment']).toBe('development');
+
     // 事件 sessionId 应取当前 tab 的 Trace-Session-Id
     const sessionIds = new Set(batch.events.map((e) => e.sessionId));
     expect(sessionIds.size).toBe(1);

@@ -106,11 +106,13 @@ var AnalyticsSDK = (() => {
 
   // src/analytics/event-factory.ts
   var EventFactory = class {
-    constructor(debug, sessionIdProvider) {
+    constructor(debug, sessionIdProvider, app) {
       __publicField(this, "debug");
       __publicField(this, "sessionIdProvider");
+      __publicField(this, "app");
       this.debug = debug;
       this.sessionIdProvider = sessionIdProvider;
+      this.app = app;
     }
     track(name, properties = {}) {
       const event = {
@@ -147,13 +149,22 @@ var AnalyticsSDK = (() => {
     }
     createContext(event) {
       const page = readPageContext();
+      const eventWithApp = this.app ? {
+        ...event,
+        properties: {
+          ...event.properties,
+          appName: this.app.name,
+          appVersion: this.app.version,
+          appEnvironment: this.app.environment
+        }
+      } : event;
       const scope = globalThis;
       const context = {
         sessionId: this.resolveSessionId(),
         url: page.pageUrl,
         referrer: scope.document?.referrer || null,
         userAgent: scope.navigator?.userAgent ?? "",
-        event
+        event: eventWithApp
       };
       this.debug.emit({
         stage: "created",
@@ -415,7 +426,11 @@ var AnalyticsSDK = (() => {
           flushInterval: config.flushInterval
         }
       );
-      this.factory = new EventFactory(this.debug, config.sessionIdProvider);
+      this.factory = new EventFactory(
+        this.debug,
+        config.sessionIdProvider,
+        config.app
+      );
       this.wireProbes(config.probes);
       this.registerLifecycle();
     }

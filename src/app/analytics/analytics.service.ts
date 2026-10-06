@@ -15,6 +15,23 @@ const ANALYTICS_ENDPOINT = '/api/analytics/events/batch';
 /** 打开后可在 DevTools 看到 创建→排队→发送→失败 全流程；上线前改为 false */
 const ANALYTICS_DEBUG = true;
 
+/**
+ * 应用元数据：随每个 analytics 事件自动携带（appName / appVersion / appEnvironment）。
+ * version 建议构建时注入（如 Angular define / 环境替换），demo 阶段先写常量；
+ * environment 按 hostname 推断（localhost → development），部署到生产主机自动变为 production。
+ */
+function detectEnvironment(): string {
+  if (typeof window === 'undefined') return 'development';
+  const host = window.location.hostname;
+  return host === 'localhost' || host === '127.0.0.1' ? 'development' : 'production';
+}
+
+const APP_META = {
+  name: 'DevextremeLikeDataGrid',
+  version: '0.0.0',
+  environment: detectEnvironment(),
+};
+
 /** 点击探针：监听带有 data-analytics 属性的元素 */
 function clickProbe(): ProbeFactory {
   return (recorder) => new ClickTracker(recorder);
@@ -39,6 +56,7 @@ export class AnalyticsService implements OnDestroy {
     this.analytics = new Analytics({
       endpoint: ANALYTICS_ENDPOINT,
       debug: ANALYTICS_DEBUG,
+      app: APP_META,
       // 会话关联改用 Trace-Session-Id：登录后由拦截器写入 TraceSessionService，
       // 每个事件创建时实时读取（未登录/已登出为 null）。
       sessionIdProvider: () => traceSession.traceSessionId(),

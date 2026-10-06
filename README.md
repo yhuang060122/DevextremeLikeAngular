@@ -153,6 +153,8 @@ npx esbuild src/analytics/bundle-entry.ts --bundle --format=iife \
 
 **四类埋点**：
 
+所有事件自动携带**应用元数据** `appName` / `appVersion` / `appEnvironment`（Analytics 实例创建时注入一次，随每个事件落库，用于区分多应用/多环境；Angular 侧 version 为常量、environment 按 hostname 推断，jquery-todo 侧为 demo 值）。
+
 | 类型 | 事件名 | 触发 | 说明 |
 | --- | --- | --- | --- |
 | 页面浏览 | `page` | 加载 / 切后台 / 卸载 | PageTracker 探针（含停留时长）；eventType=page / category=navigation |
@@ -329,6 +331,8 @@ npx esbuild src/analytics/bundle-entry.ts --bundle --format=iife \
 | `js/app.js` | App logic; business events reported via `window.todoAnalytics.track('todo_add' / 'todo_toggle' / 'todo_delete' / 'todo_clear_completed', props)` |
 
 **Event types**:
+
+Every event automatically carries **app metadata** `appName` / `appVersion` / `appEnvironment` (injected once at `Analytics` creation, stored with every event to distinguish apps/environments; Angular injects a constant version and infers environment from hostname, jquery-todo injects demo values).
 
 | Type | Event name | Trigger | Notes |
 | --- | --- | --- | --- |

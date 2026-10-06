@@ -63,7 +63,7 @@ jquery CDN → js/analytics-sdk.js → js/api.js → js/analytics.js → js/app.
 | `js/analytics.js` | 播种会话 id（`sessionStorage['analytics.session']`，SDK 只读不写）；创建 `new AnalyticsSDK.Analytics({ endpoint, batchSize:5, flushInterval:1500, debug:true, probes:[PageTracker, ClickTracker] })` 并 `start()`；暴露 `window.todoAnalytics` |
 | `js/app.js` | 业务事件经 `window.todoAnalytics.track('todo_add' / 'todo_toggle' / 'todo_delete' / 'todo_clear_completed', props)`；勾选框/删除按钮渲染时加 `data-analytics` 属性 |
 
-**四类埋点**（事件模型与 Angular 接入一致，后端 `/logs` 页可查；所有事件带分析层分类 eventType/eventCategory，/logs 页可按其筛选）：
+**四类埋点**（事件模型与 Angular 接入一致，后端 `/logs` 页可查；所有事件带分析层分类 eventType/eventCategory，/logs 页可按其筛选；另自动携带应用元数据 appName/appVersion/appEnvironment——Angular 注入 DevextremeLikeDataGrid/0.0.0/hostname 推断，jquery-todo 注入 demo 值）：
 
 | 类型 | 事件名 | 触发 | 分析层分类 |
 |---|---|---|---|

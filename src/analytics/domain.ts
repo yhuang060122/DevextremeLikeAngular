@@ -28,6 +28,24 @@ export interface AnalyticsContext {
   readonly event: AnalyticsEvent;
 }
 
+/**
+ * 应用元数据：创建 Analytics 实例时注入一次，
+ * 随每个事件自动携带（appName / appVersion / appEnvironment）。
+ *
+ * 配置一次、全事件生效，适合区分多应用 / 多环境的数据，
+ * 不需要在每个 track 调用处手动传。
+ */
+export interface AppMetadata {
+  /** 应用名称，如 "DevextremeLikeDataGrid" / "jquery-todo" */
+  readonly name: string;
+
+  /** 应用版本，如 package.json 的 version */
+  readonly version: string;
+
+  /** 运行环境：development / staging / production 等 */
+  readonly environment: string;
+}
+
 export function readPageContext(): {
   pagePath: string;
   pageUrl: string;

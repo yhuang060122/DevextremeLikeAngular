@@ -1,4 +1,5 @@
 import type { ProbeFactory } from './tracker';
+import type { AppMetadata } from './domain';
 
 export interface AnalyticsConfig {
   endpoint: string;
@@ -9,6 +10,12 @@ export interface AnalyticsConfig {
   headers?: Record<string, string>;
   debug?: boolean;
   probes?: ProbeFactory[];
+
+  /**
+   * 应用元数据（可选）。配置一次，随每个事件自动携带
+   * appName / appVersion / appEnvironment 三个属性。
+   */
+  app?: AppMetadata;
 
   /**
    * 会话 id 提供者（可选）。

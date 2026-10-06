@@ -37,6 +37,14 @@
   var analytics = new SDK.Analytics({
     endpoint: BASE_URL + "/api/analytics/events/batch",
 
+    // 应用元数据：随每个事件自动携带 appName / appVersion / appEnvironment，
+    // 与 Angular 宿主各自注入，后端 /logs 页可按此区分应用与环境
+    app: {
+      name: "jquery-todo",
+      version: "1.0.0",
+      environment: "development"
+    },
+
     // demo 友好：小批量、短间隔，方便观察批量上报
     batchSize: 5,
     flushInterval: 1500,
