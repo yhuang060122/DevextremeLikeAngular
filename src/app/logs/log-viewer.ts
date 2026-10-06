@@ -140,10 +140,12 @@ export class LogViewer implements OnInit {
     const parts: string[] = [];
     const title = s('title');
     const element = s('element');
+    const label = s('label');
     const text = s('text');
     const id = s('id');
     if (title) parts.push(title);
     if (element) parts.push(`元素:${element}`);
+    if (label) parts.push(`标签:${label}`);
     if (text) parts.push(`文本:${text}`);
     if (id) parts.push(`id:${id}`);
     if (typeof p['durationMs'] === 'number') parts.push(`${p['durationMs']}ms`);

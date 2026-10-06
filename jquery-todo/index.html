@@ -19,7 +19,7 @@
         placeholder="需要做点什么？"
         maxlength="200"
       />
-      <button type="submit" class="add-form__btn">添加</button>
+      <button type="submit" class="add-form__btn" data-analytics="todo-add-btn">添加</button>
     </form>
 
     <!-- 列表 -->
@@ -32,11 +32,11 @@
     <footer class="app__footer">
       <span class="app__counter" id="items-left">0 项待办</span>
       <div class="app__filters">
-        <button type="button" class="filter-btn is-active" data-filter="all">全部</button>
-        <button type="button" class="filter-btn" data-filter="active">未完成</button>
-        <button type="button" class="filter-btn" data-filter="completed">已完成</button>
+        <button type="button" class="filter-btn is-active" data-filter="all" data-analytics="todo-filter-all">全部</button>
+        <button type="button" class="filter-btn" data-filter="active" data-analytics="todo-filter-active">未完成</button>
+        <button type="button" class="filter-btn" data-filter="completed" data-analytics="todo-filter-completed">已完成</button>
       </div>
-      <button type="button" class="clear-btn" id="clear-completed">清除已完成</button>
+      <button type="button" class="clear-btn" id="clear-completed" data-analytics="todo-clear-btn">清除已完成</button>
     </footer>
 
     <!-- 后端连接状态（AJAX 探活结果） -->
@@ -47,7 +47,9 @@
   </main>
 
   <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <script src="js/analytics-sdk.js"></script>
   <script src="js/api.js"></script>
+  <script src="js/analytics.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

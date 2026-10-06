@@ -55,11 +55,13 @@ $(function () {
           $("<input>")
             .attr("type", "checkbox")
             .addClass("todo-item__checkbox")
+            .attr("data-analytics", "todo-toggle")
             .prop("checked", todo.completed),
           $("<span>").addClass("todo-item__text").text(todo.text),
           $("<button>")
             .attr("type", "button")
             .addClass("todo-item__delete")
+            .attr("data-analytics", "todo-delete")
             .attr("aria-label", "删除任务")
             .html("&times;")
         );
@@ -108,12 +110,11 @@ $(function () {
       });
   }
 
-  // 后端可达时上报埋点；不可达时静默跳过（不打断本地操作）
+  // 后端可达时通过 Analytics SDK 上报；不可达时静默跳过（不打断本地操作）
   function track(name, properties) {
     if (state.online !== true) return;
-    TodoApi.track("todo_action", name, properties).fail(function () {
-      console.warn("[todo] 埋点上报失败:", name);
-    });
+    if (!window.todoAnalytics) return;
+    window.todoAnalytics.track(name, properties);
   }
 
   /* ---- 操作 ---- */

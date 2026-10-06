@@ -1,37 +1,70 @@
 /* ============================================================
-   jQuery Todo — AJAX 模块（对接本仓库 .NET 后端）
-   依赖 jQuery 3.x；在 app.js 之前加载。
+   jQuery Todo — 后端连接模块
+   依赖 jQuery 3.x；在 analytics.js 之前加载。
 
    后端地址默认 http://localhost:5080（仓库 server 目录 dotnet run）。
    如需覆盖，在加载本文件前设置全局变量 TODO_API_BASE，例如：
      <script>window.TODO_API_BASE = "https://api.example.com";</script>
 
-   两个调用：
-     TodoApi.getServerStatus()  → GET  /api/test/events   （连接探活 + 服务器信息）
-     TodoApi.track(type, name, properties)
-                                 → POST /api/analytics/events/batch （埋点上报）
-   均为 jQuery Promise，超时 4 秒，失败由调用方处理。
+   职责：
+     TodoApi.getServerStatus() → GET /api/test/events
+                                  （连接探活 + 服务器时间 + 事件总数）
+     request() 封装：每次业务 API 调用完成后，经 Analytics SDK 上报一条
+     "Api Call" 事件（与 Angular 侧 api-call-tracker.interceptor 语义一致：
+     method / url / status / ok / durationMs / 页面上下文）。
+
+   循环防护：不上报 analytics 上报端点自身（/api/analytics/events/），
+   避免 "上报 Api Call → 新事件 → 再上报" 的自激循环。
    ============================================================ */
 (function (window, $) {
   "use strict";
 
   var BASE_URL = window.TODO_API_BASE || "http://localhost:5080";
 
-  // 每个浏览器 tab 一个会话 id（sessionStorage 持久化，F5 续用；
-  // 与仓库 trace-session 约定一致：不写 localStorage）。
-  var SESSION_KEY = "jquery-todo.sessionId";
-  var sessionId = (function () {
-    try {
-      var existing = window.sessionStorage.getItem(SESSION_KEY);
-      if (existing) return existing;
-      var id = "todo-" + Date.now().toString(36) + "-" +
-        Math.random().toString(36).slice(2, 10);
-      window.sessionStorage.setItem(SESSION_KEY, id);
-      return id;
-    } catch (e) {
-      return "todo-" + Date.now().toString(36);
+  function trackApiCall(method, url, props) {
+    // 循环防护：analytics 上报端点自身不埋点（SDK 上报走原生 fetch 不经
+    // 本模块，此判断是双保险）
+    if (url.indexOf("/api/analytics/events/") !== -1) return;
+
+    if (!window.todoAnalytics || typeof window.todoAnalytics.track !== "function") {
+      return;
     }
-  })();
+
+    window.todoAnalytics.track("Api Call", $.extend({
+      pagePath: window.location.pathname,
+      pageUrl: window.location.href,
+      pageTitle: window.document.title,
+      method: method,
+      url: url
+    }, props));
+  }
+
+  /**
+   * 通用 API 请求封装：发请求并在完成（成功/失败）后上报 "Api Call" 埋点。
+   * 返回 jQuery jqXHR（可继续 .done/.fail 链式调用）。
+   */
+  function request(options) {
+    var started = performance.now();
+    var method = options.method || "GET";
+    var url = options.url;
+
+    return $.ajax(options)
+      .done(function (data, textStatus, jqXHR) {
+        trackApiCall(method, url, {
+          status: jqXHR.status,
+          ok: true,
+          durationMs: Math.round(performance.now() - started)
+        });
+      })
+      .fail(function (jqXHR, textStatus, errorThrown) {
+        trackApiCall(method, url, {
+          status: jqXHR.status,
+          ok: false,
+          error: textStatus + (errorThrown ? ": " + errorThrown : ""),
+          durationMs: Math.round(performance.now() - started)
+        });
+      });
+  }
 
   var api = {
     baseUrl: BASE_URL,
@@ -41,43 +74,10 @@
      * 成功 resolve { serverTimeUtc, total, items }；失败 reject(jqXHR)
      */
     getServerStatus: function () {
-      return $.ajax({
+      return request({
         url: BASE_URL + "/api/test/events",
         method: "GET",
         dataType: "json",
-        timeout: 4000
-      });
-    },
-
-    /**
-     * POST /api/analytics/events/batch —— 上报一条埋点事件
-     * @param {string} type  事件类型，默认 "todo_action"
-     * @param {string} name  事件名，如 "todo_add"
-     * @param {Object} properties 附加属性
-     */
-    track: function (type, name, properties) {
-      var payload = {
-        events: [
-          {
-            sessionId: sessionId,
-            url: window.location.href,
-            referrer: window.document.referrer || null,
-            userAgent: window.navigator.userAgent,
-            event: {
-              type: type || "todo_action",
-              name: name,
-              properties: properties || {}
-            }
-          }
-        ]
-      };
-
-      return $.ajax({
-        url: BASE_URL + "/api/analytics/events/batch",
-        method: "POST",
-        dataType: "json",
-        contentType: "application/json",
-        data: JSON.stringify(payload),
         timeout: 4000
       });
     }

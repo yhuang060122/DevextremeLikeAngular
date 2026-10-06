@@ -43,6 +43,10 @@
 │  │  ├─ logs/              # 日志查询页（analytics 事件 tab）
 │  │  └─ test-page/         # API 测试页（含 Trace-Session-Id demo 登录/登出）
 │  └─ tests/                # 全部单元测试（*.spec.ts，Vitest）
+├─ jquery-todo/            # 独立 jQuery 3 待办应用（Analytics SDK 浏览器打包用法，见下文）
+│  ├─ index.html           # 入口：data-analytics 元素标记 + 脚本加载顺序
+│  ├─ css/style.css
+│  └─ js/                  # analytics-sdk.js（esbuild 产物）+ api.js + analytics.js + app.js
 └─ proxy.conf.json          # ng serve 把 /api 代理到 localhost:5080
 ```
 
@@ -123,6 +127,50 @@ npm run start     # 即 ng serve，默认 http://localhost:4200
 | POST | `/api/auth/login` | demo 登录（成功时签发 Trace-Session-Id 响应头） |
 | POST | `/api/auth/logout` | demo 登出（删除 Trace-Session-Id 映射） |
 
+### jquery-todo：独立 jQuery 应用中使用 Analytics SDK
+
+`jquery-todo/` 是一个不依赖 Angular 构建链的独立 jQuery 3 待办应用，演示如何把本仓库的
+框架无关 Analytics SDK（`src/analytics`）打包成浏览器脚本，并在原生 JS 环境中接入
+（页面浏览、元素点击、业务事件、API 调用四类埋点全部走同一 SDK 批量队列，后端
+`/logs` 页可查）。
+
+**SDK 打包**（每次修改 `src/analytics/*` 后重建产物 `jquery-todo/js/analytics-sdk.js`）：
+
+```bash
+npx esbuild src/analytics/bundle-entry.ts --bundle --format=iife \
+  --global-name=AnalyticsSDK --target=es2020 \
+  --outfile=jquery-todo/js/analytics-sdk.js
+```
+
+**使用方式**：脚本按顺序加载（jquery CDN → SDK 产物 → 业务模块）：
+
+| 文件 | 职责 |
+| --- | --- |
+| `js/analytics-sdk.js` | esbuild 打包的 SDK 产物（IIFE，全局 `AnalyticsSDK`） |
+| `js/api.js` | 后端连接：`getServerStatus()` 探活；`request()` 封装在每次业务 API 完成时自动上报 `Api Call` 埋点（循环防护：跳过 `/api/analytics/events/` 自身） |
+| `js/analytics.js` | SDK 宿主集成：播种会话 id（`sessionStorage['analytics.session']`）、创建 `Analytics` 实例（endpoint=后端 batch 接口，注册 PageTracker + ClickTracker 探针）、暴露 `window.todoAnalytics` |
+| `js/app.js` | 应用逻辑；业务事件经 `window.todoAnalytics.track('todo_add' / 'todo_toggle' / 'todo_delete' / 'todo_clear_completed', props)` 上报 |
+
+**四类埋点**：
+
+| 类型 | 事件名 | 触发 | 说明 |
+| --- | --- | --- | --- |
+| 页面浏览 | `page` | 加载 / 切后台 / 卸载 | PageTracker 探针（含停留时长） |
+| 元素点击 | `Element Clicked` | 点击带 `data-analytics` 属性的元素 | ClickTracker 探针；element/id/name/type/label/tag/cssClass |
+| 业务事件 | `todo_*` | 应用动作 | app.js → SDK `track()` |
+| API 调用 | `Api Call` | 每次业务 API 请求完成 | api.js `request()`；method/url/status/ok/durationMs + 页面上下文 |
+
+**运行**：
+
+```bash
+cd server && dotnet run          # 后端 5080（dev CORS 已放开，独立页面可直连）
+# 直接浏览器打开 jquery-todo/index.html，或：
+cd jquery-todo && python -m http.server 8000   # http://localhost:8000
+```
+
+后端地址可在页面加载前用 `window.TODO_API_BASE` 覆盖。后端不可达时自动降级：
+状态栏变黄提示，任务数据落 localStorage，埋点静默丢弃，应用功能不受影响。
+
 ### 测试与构建
 
 ```bash
@@ -170,6 +218,10 @@ A full-stack demo focused on:
 │  │  ├─ logs/              # Log viewer page (analytics events tab)
 │  │  └─ test-page/         # API test page (with Trace-Session-Id demo login/logout)
 │  └─ tests/                # All unit tests (*.spec.ts, Vitest)
+├─ jquery-todo/            # Standalone jQuery 3 todo app (Analytics SDK browser bundling, see below)
+│  ├─ index.html           # Entry: data-analytics element markers + script loading order
+│  ├─ css/style.css
+│  └─ js/                  # analytics-sdk.js (esbuild output) + api.js + analytics.js + app.js
 └─ proxy.conf.json          # ng serve proxies /api to localhost:5080
 ```
 
@@ -249,6 +301,54 @@ Key points:
 | GET | `/api/test/events` | Smoke test: server time + recent events |
 | POST | `/api/auth/login` | Demo login (issues Trace-Session-Id response header) |
 | POST | `/api/auth/logout` | Demo logout (deletes Trace-Session-Id mapping) |
+
+### jquery-todo: using the Analytics SDK from a standalone jQuery app
+
+`jquery-todo/` is a standalone jQuery 3 todo app that does not depend on the Angular
+build chain. It demonstrates bundling the framework-agnostic Analytics SDK
+(`src/analytics`) into a browser script and wiring it up in plain JS — page views,
+element clicks, business events and API calls all flow through the same SDK batch
+queue and are queryable in the `/logs` page.
+
+**Bundle the SDK** (re-run after changing `src/analytics/*` to rebuild
+`jquery-todo/js/analytics-sdk.js`):
+
+```bash
+npx esbuild src/analytics/bundle-entry.ts --bundle --format=iife \
+  --global-name=AnalyticsSDK --target=es2020 \
+  --outfile=jquery-todo/js/analytics-sdk.js
+```
+
+**Usage**: scripts load in order (jQuery CDN → SDK bundle → business modules):
+
+| File | Role |
+| --- | --- |
+| `js/analytics-sdk.js` | esbuild-bundled SDK (IIFE, global `AnalyticsSDK`) |
+| `js/api.js` | Backend connectivity: `getServerStatus()` probe; `request()` wrapper auto-tracks an `Api Call` event per business request (loop guard: skips `/api/analytics/events/` itself) |
+| `js/analytics.js` | SDK host integration: seeds session id (`sessionStorage['analytics.session']`), creates the `Analytics` instance (endpoint = backend batch API, PageTracker + ClickTracker probes), exposes `window.todoAnalytics` |
+| `js/app.js` | App logic; business events reported via `window.todoAnalytics.track('todo_add' / 'todo_toggle' / 'todo_delete' / 'todo_clear_completed', props)` |
+
+**Event types**:
+
+| Type | Event name | Trigger | Notes |
+| --- | --- | --- | --- |
+| Page view | `page` | on load / hide / unload | PageTracker probe (includes dwell time) |
+| Element click | `Element Clicked` | click on an element with a `data-analytics` attribute | ClickTracker probe; element/id/name/type/label/tag/cssClass |
+| Business | `todo_*` | app actions | app.js → SDK `track()` |
+| API call | `Api Call` | on completion of each business API request | api.js `request()`; method/url/status/ok/durationMs + page context |
+
+**Run**:
+
+```bash
+cd server && dotnet run          # backend on 5080 (dev CORS widened, standalone pages may call it directly)
+# open jquery-todo/index.html directly in a browser, or:
+cd jquery-todo && python -m http.server 8000   # http://localhost:8000
+```
+
+The backend base URL can be overridden with `window.TODO_API_BASE` before page load.
+When the backend is unreachable the app degrades gracefully: the status bar turns
+amber, todos persist in localStorage, analytics events are dropped silently, and
+the app keeps working.
 
 ### Testing & Build
 

@@ -87,11 +87,13 @@ describe('AnalyticsService（接入 Angular 应用）', () => {
     expect(batch.events.every((e) => e.sessionId === null)).toBe(true);
   });
 
-  it('点击带 data-analytics 的元素记录 Element Clicked', async () => {
+  it('点击带 data-analytics 的元素记录 Element Clicked（含 id/name/type/label）', async () => {
     const service = TestBed.inject(AnalyticsService);
 
     const button = document.createElement('button');
     button.setAttribute('data-analytics', 'demo-btn');
+    button.setAttribute('name', 'demo-action');
+    button.setAttribute('type', 'submit');
     // 文本需 data-analytics-text 显式开启（SDK 的隐私保护设计）
     button.setAttribute('data-analytics-text', '');
     button.textContent = 'Click me';
@@ -110,5 +112,34 @@ describe('AnalyticsService（接入 Angular 应用）', () => {
     expect(clicked).toBeDefined();
     expect(clicked?.event.properties['element']).toBe('demo-btn');
     expect(clicked?.event.properties['text']).toBe('Click me');
+    // 元素标识四件套：id / name / type / label
+    expect(clicked?.event.properties['id']).toBeNull();
+    expect(clicked?.event.properties['name']).toBe('demo-action');
+    expect(clicked?.event.properties['type']).toBe('submit');
+    expect(clicked?.event.properties['label']).toBe('Click me');
+  });
+
+  it('点击元素的 label 优先取 aria-label，而非可见文本', async () => {
+    const service = TestBed.inject(AnalyticsService);
+
+    const btn = document.createElement('button');
+    btn.setAttribute('data-analytics', 'aria-btn');
+    btn.setAttribute('aria-label', '删除任务');
+    btn.textContent = '×';
+    document.body.appendChild(btn);
+
+    btn.click();
+
+    document.body.removeChild(btn);
+
+    await service.flush();
+
+    const batch = lastSentBatch();
+    const clicked = batch.events.find(
+      (e) => e.event.name === 'Element Clicked',
+    );
+    expect(clicked).toBeDefined();
+    expect(clicked?.event.properties['element']).toBe('aria-btn');
+    expect(clicked?.event.properties['label']).toBe('删除任务');
   });
 });

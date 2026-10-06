@@ -20,7 +20,7 @@
       "event": {
         "type": "track",
         "name": "Element Clicked",
-        "properties": { "element": "nav-logs", "text": "日志查询", "tag": "A", "id": null, "cssClass": "text-sm" },
+        "properties": { "element": "nav-logs", "text": "日志查询", "tag": "A", "id": null, "name": null, "type": null, "label": "日志查询", "cssClass": "text-sm" },
         "timestamp": "2026-10-03T15:00:05.000Z"
       }
     }
