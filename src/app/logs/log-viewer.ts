@@ -143,11 +143,13 @@ export class LogViewer implements OnInit {
     const label = s('label');
     const text = s('text');
     const id = s('id');
+    const errorMsg = s('error_message') || s('error');
     if (title) parts.push(title);
     if (element) parts.push(`元素:${element}`);
     if (label) parts.push(`标签:${label}`);
     if (text) parts.push(`文本:${text}`);
     if (id) parts.push(`id:${id}`);
+    if (errorMsg) parts.push(`错误:${errorMsg}`);
     if (typeof p['durationMs'] === 'number') parts.push(`${p['durationMs']}ms`);
     return parts.join(' · ') || '—';
   }

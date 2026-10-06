@@ -70,7 +70,7 @@ jquery CDN → js/analytics-sdk.js → js/api.js → js/analytics.js → js/app.
 | 页面浏览 | `page` | PageTracker：加载 / 切后台 / 卸载（含停留时长） |
 | 元素点击 | `Element Clicked` | ClickTracker：点击带 `data-analytics` 的元素（含 element/id/name/type/label/tag/cssClass） |
 | 业务事件 | `todo_*` | app.js 动作 |
-| API 调用 | `Api Call` | api.js `request()`：method/url/status/ok/durationMs/页面上下文 |
+| API 调用 | `Api Call` | api.js `request()`：method/url/apiEndpoint/apiVersion/status/ok/durationMs/页面上下文；失败时含 error_code/error_message/error_track_trace |
 
 **离线降级**：后端不可达时状态栏变黄（`api.js` 探活失败），业务事件跳过上报，
 SDK 队列尝试发送失败后静默丢弃，应用功能与 localStorage 完全不受影响。

@@ -53,7 +53,7 @@ describe('apiCallTrackerInterceptor（用 analytics 记录 API 调用）', () =>
       .map((e) => e.event.properties);
   }
 
-  it('记录普通 API 调用的 Api Call 事件（method/url/status/耗时）', async () => {
+  it('记录普通 API 调用的 Api Call 事件（method/url/apiEndpoint/status/耗时）', async () => {
     httpClient.get('/api/foo').subscribe();
     http.expectOne('/api/foo').flush({}, { status: 200, statusText: 'OK' });
 
@@ -63,12 +63,18 @@ describe('apiCallTrackerInterceptor（用 analytics 记录 API 调用）', () =>
     expect(calls.length).toBe(1);
     expect(calls[0]['method']).toBe('GET');
     expect(calls[0]['url']).toBe('/api/foo');
+    expect(calls[0]['apiEndpoint']).toBe('/api/foo');
+    expect(calls[0]['apiVersion']).toBeNull();
     expect(calls[0]['status']).toBe(200);
     expect(calls[0]['ok']).toBe(true);
     expect(typeof calls[0]['durationMs']).toBe('number');
+    // 成功时错误字段为 null（schema 不随成败变化）
+    expect(calls[0]['error_code']).toBeNull();
+    expect(calls[0]['error_message']).toBeNull();
+    expect(calls[0]['error_track_trace']).toBeNull();
   });
 
-  it('记录失败的 API 调用（非 2xx 视为失败）', async () => {
+  it('记录失败的 API 调用（含 error_code / error_message / error_track_trace）', async () => {
     httpClient.get('/api/missing').subscribe({ error: () => undefined });
     http.expectOne('/api/missing').flush(
       { message: 'not found' },
@@ -81,8 +87,13 @@ describe('apiCallTrackerInterceptor（用 analytics 记录 API 调用）', () =>
     expect(calls.length).toBe(1);
     expect(calls[0]['method']).toBe('GET');
     expect(calls[0]['url']).toBe('/api/missing');
+    expect(calls[0]['apiEndpoint']).toBe('/api/missing');
     expect(calls[0]['status']).toBe(404);
     expect(calls[0]['ok']).toBe(false);
+    expect(calls[0]['error_code']).toBe(404);
+    expect(calls[0]['error_message']).toBe('Not Found');
+    // error_track_trace 取后端错误响应体原文（此处为 {message:'not found'} 的 JSON）
+    expect(String(calls[0]['error_track_trace'])).toContain('not found');
   });
 
   it('跳过 /api/analytics/events/ 上报端点，避免自激循环', async () => {

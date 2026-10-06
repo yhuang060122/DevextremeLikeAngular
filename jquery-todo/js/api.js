@@ -10,8 +10,9 @@
      TodoApi.getServerStatus() → GET /api/test/events
                                   （连接探活 + 服务器时间 + 事件总数）
      request() 封装：每次业务 API 调用完成后，经 Analytics SDK 上报一条
-     "Api Call" 事件（与 Angular 侧 api-call-tracker.interceptor 语义一致：
-     method / url / status / ok / durationMs / 页面上下文）。
+     "Api Call" 事件（与 Angular 侧 api-call-tracker.interceptor 语义一致）：
+     method / url / apiEndpoint / apiVersion / status / ok / durationMs
+     + 失败字段 error_code / error_message / error_track_trace（成功为 null）。
 
    循环防护：不上报 analytics 上报端点自身（/api/analytics/events/），
    避免 "上报 Api Call → 新事件 → 再上报" 的自激循环。
@@ -21,7 +22,39 @@
 
   var BASE_URL = window.TODO_API_BASE || "http://localhost:5080";
 
-  function trackApiCall(method, url, props) {
+  /** 从请求 URL 提取 API 端点：去掉 query string / hash 的路径。 */
+  function readApiEndpoint(url) {
+    try {
+      return new URL(url, "http://localhost").pathname;
+    } catch (e) {
+      return String(url).split(/[?#]/)[0] || url;
+    }
+  }
+
+  /** 从 URL 提取 API 版本号（/api/v1/xxx 或 /api/v1.2/xxx）；无版本段返回 null。 */
+  function readApiVersion(url) {
+    var m = String(url).match(/\/api\/v(\d+(?:\.\d+)?)/);
+    return m ? m[1] : null;
+  }
+
+  /** 截断超长文本（错误体可能很长），避免整个进入事件。 */
+  function clamp(text, max) {
+    max = max || 200;
+    text = String(text);
+    return text.length > max ? text.slice(0, max) + "…" : text;
+  }
+
+  /** 失败时收集"错误追踪信息"：优先后端错误响应体，其次 statusText。 */
+  function readErrorTrackTrace(jqXHR) {
+    if (jqXHR && jqXHR.responseText) {
+      var body = String(jqXHR.responseText).trim();
+      if (body) return clamp(body);
+    }
+    if (jqXHR && jqXHR.statusText) return clamp(jqXHR.statusText);
+    return null;
+  }
+
+  function trackApiCall(method, url, outcome) {
     // 循环防护：analytics 上报端点自身不埋点（SDK 上报走原生 fetch 不经
     // 本模块，此判断是双保险）
     if (url.indexOf("/api/analytics/events/") !== -1) return;
@@ -35,8 +68,17 @@
       pageUrl: window.location.href,
       pageTitle: window.document.title,
       method: method,
-      url: url
-    }, props));
+      url: url,
+      apiEndpoint: readApiEndpoint(url),
+      apiVersion: readApiVersion(url),
+      status: outcome.status,
+      ok: outcome.ok,
+      durationMs: outcome.durationMs,
+      // 错误字段：成功时为 null，schema 不随成败变化
+      error_code: outcome.error_code == null ? null : outcome.error_code,
+      error_message: outcome.error_message == null ? null : outcome.error_message,
+      error_track_trace: outcome.error_track_trace == null ? null : outcome.error_track_trace
+    }, outcome));
   }
 
   /**
@@ -57,10 +99,14 @@
         });
       })
       .fail(function (jqXHR, textStatus, errorThrown) {
+        var errorMessage = textStatus + (errorThrown ? ": " + errorThrown : "");
         trackApiCall(method, url, {
           status: jqXHR.status,
           ok: false,
-          error: textStatus + (errorThrown ? ": " + errorThrown : ""),
+          error: errorMessage,
+          error_code: jqXHR.status,
+          error_message: errorMessage,
+          error_track_trace: readErrorTrackTrace(jqXHR),
           durationMs: Math.round(performance.now() - started)
         });
       });

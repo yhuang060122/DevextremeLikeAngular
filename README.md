@@ -158,7 +158,7 @@ npx esbuild src/analytics/bundle-entry.ts --bundle --format=iife \
 | 页面浏览 | `page` | 加载 / 切后台 / 卸载 | PageTracker 探针（含停留时长） |
 | 元素点击 | `Element Clicked` | 点击带 `data-analytics` 属性的元素 | ClickTracker 探针；element/id/name/type/label/tag/cssClass |
 | 业务事件 | `todo_*` | 应用动作 | app.js → SDK `track()` |
-| API 调用 | `Api Call` | 每次业务 API 请求完成 | api.js `request()`；method/url/status/ok/durationMs + 页面上下文 |
+| API 调用 | `Api Call` | 每次业务 API 请求完成 | api.js `request()`；method/url/apiEndpoint/apiVersion/status/ok/durationMs + 失败字段 error_code/error_message/error_track_trace + 页面上下文 |
 
 **运行**：
 
@@ -335,7 +335,7 @@ npx esbuild src/analytics/bundle-entry.ts --bundle --format=iife \
 | Page view | `page` | on load / hide / unload | PageTracker probe (includes dwell time) |
 | Element click | `Element Clicked` | click on an element with a `data-analytics` attribute | ClickTracker probe; element/id/name/type/label/tag/cssClass |
 | Business | `todo_*` | app actions | app.js → SDK `track()` |
-| API call | `Api Call` | on completion of each business API request | api.js `request()`; method/url/status/ok/durationMs + page context |
+| API call | `Api Call` | on completion of each business API request | api.js `request()`; method/url/apiEndpoint/apiVersion/status/ok/durationMs + error fields error_code/error_message/error_track_trace + page context |
 
 **Run**:
 
