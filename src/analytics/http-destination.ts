@@ -1,5 +1,4 @@
 import type { AnalyticsContext } from './domain';
-import type { DebugFailureReason, DebugController } from './debug';
 
 export interface SendOptions {
   keepalive?: boolean;
@@ -28,11 +27,8 @@ function byteLength(body: string): number {
 export class HttpDestination implements Destination {
   private readonly options: HttpDestinationOptions;
 
-  private readonly debug: DebugController;
-
-  constructor(options: HttpDestinationOptions, debug: DebugController) {
+  constructor(options: HttpDestinationOptions) {
     this.options = options;
-    this.debug = debug;
   }
 
   async send(events: readonly AnalyticsContext[], options: SendOptions = {}): Promise<void> {
@@ -42,8 +38,6 @@ export class HttpDestination implements Destination {
 
     const keepalive = this.allowKeepalive(body, options.keepalive === true);
 
-    const started = performance.now();
-
     let timedOut = false;
 
     try {
@@ -52,23 +46,11 @@ export class HttpDestination implements Destination {
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
-
-      const duration = Math.round(performance.now() - started);
-
-      // Debug → SENT
-      events.forEach((ctx) =>
-        this.debug.emit({
-          stage: 'sent',
-          context: ctx,
-          timestamp: Date.now(),
-          durationMs: duration,
-        }),
-      );
     } catch (error) {
       const timeoutMs = this.options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
       const failure: {
-        reason: DebugFailureReason;
+        reason: 'timeout' | 'transport-error';
         message: string;
       } = timedOut
         ? {
@@ -79,17 +61,6 @@ export class HttpDestination implements Destination {
             reason: 'transport-error',
             message: String(error),
           };
-
-      // Debug → FAILED
-      events.forEach((ctx) =>
-        this.debug.emit({
-          stage: 'failed',
-          context: ctx,
-          timestamp: Date.now(),
-          reason: failure.reason,
-          error: failure.message,
-        }),
-      );
 
       throw timedOut ? new Error(failure.message) : error;
     }

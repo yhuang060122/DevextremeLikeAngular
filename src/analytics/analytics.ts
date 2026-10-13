@@ -1,4 +1,3 @@
-import { DebugController } from "./debug";
 import { hasDom, warnOnce } from "./utils";
 import { EventFactory } from "./event-factory";
 import { EventQueue, type FlushOptions } from "./event-queue";
@@ -11,7 +10,6 @@ export class Analytics implements EventRecorder {
 
   private readonly trackers: Tracker[] = [];
 
-  readonly debug: DebugController;
   private readonly factory: EventFactory;
   private readonly queue: EventQueue;
 
@@ -28,21 +26,18 @@ export class Analytics implements EventRecorder {
   };
 
   constructor(config: AnalyticsConfig) {
-    this.debug = new DebugController(config.debug === true);
 
     const destination = new HttpDestination(
       {
         endpoint: config.endpoint,
         headers: config.headers,
         timeoutMs: config.timeoutMs,
-      },
-      this.debug
+      }
     );
 
 
     this.queue = new EventQueue(
       destination,
-      this.debug,
       {
         batchSize: config.batchSize,
         flushInterval: config.flushInterval,
@@ -51,7 +46,6 @@ export class Analytics implements EventRecorder {
 
 
     this.factory = new EventFactory(
-      this.debug,
       config.sessionIdProvider,
       config.app
     );
@@ -99,7 +93,7 @@ export class Analytics implements EventRecorder {
     this.removeLifecycle();
     this.queue.stop();
 
-    void this.flush().finally(() => this.debug.stop());
+    void this.flush();
 
   }
 
@@ -119,7 +113,6 @@ export class Analytics implements EventRecorder {
     await this.flush();
 
     this.queue.stop();
-    this.debug.stop();
 
   }
 

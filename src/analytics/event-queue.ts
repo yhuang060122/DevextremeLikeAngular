@@ -1,6 +1,5 @@
-import { hasDom } from "./utils";
+import { hasDom, isDebugEnabled } from "./utils";
 import type { AnalyticsContext } from "./domain";
-import type { DebugController } from "./debug";
 import type { Destination } from "./http-destination";
 
 export interface EventQueueOptions {
@@ -11,6 +10,9 @@ export interface EventQueueOptions {
 export interface FlushOptions {
   keepalive?: boolean;
 }
+
+/** flush 触发来源：schedule=定时 / batch=队列满 / online=网络恢复 / manual=外部手动（卸载、隐藏、显式调用） */
+type FlushSource = "schedule" | "batch" | "online" | "manual";
 
 const DEFAULT_OPTIONS: Required<EventQueueOptions> = {
   batchSize: 20,
@@ -27,8 +29,6 @@ export class EventQueue {
 
   private readonly destination: Destination;
 
-  private readonly debug: DebugController;
-
   private inFlight?: Promise<void>;
 
   private timer?: number;
@@ -37,11 +37,9 @@ export class EventQueue {
 
   constructor(
     destination: Destination,
-    debug: DebugController,
     options: EventQueueOptions = {}
   ) {
     this.destination = destination;
-    this.debug = debug;
 
     this.options = {
       ...DEFAULT_OPTIONS,
@@ -53,32 +51,29 @@ export class EventQueue {
     }
   }
 
+  /** event queue 调试日志：控制台执行 window.ANALYTICS_DEBUG = true 后输出 */
+  private log(message: string): void {
+    if (!isDebugEnabled()) return;
+    console.log(`[analytics][queue] ${message}`);
+  }
+
   enqueue(context: AnalyticsContext): void {
 
     if (this.queue.length >= MAX_BUFFERED_EVENTS) {
       const dropped = this.queue.shift() as AnalyticsContext;
 
-      // Debug → FAILED (terminal: it never even left)
-      this.debug.emit({
-        stage: "failed",
-        context: dropped,
-        timestamp: Date.now(),
-        reason: "queue-overflow",
-        error: "queue overflow",
-      });
+      this.log(
+        `enqueue 队列溢出（>${MAX_BUFFERED_EVENTS}），丢弃最早 1 条（${dropped.event.name}），队列仍为 ${this.queue.length} 条`,
+      );
     }
 
     this.queue.push(context);
 
-    // Debug → QUEUED
-    this.debug.emit({
-      stage: "queued",
-      context,
-      timestamp: Date.now(),
-    });
+    this.log(`enqueue +1（${context.event.name}）→ 队列 ${this.queue.length} 条`);
 
     if (this.queue.length >= this.options.batchSize) {
-      void this.flush();
+      this.log(`enqueue 队列达到 batchSize(${this.options.batchSize})，触发 flush[batch]`);
+      void this.runFlush("batch");
       return;
     }
 
@@ -86,13 +81,26 @@ export class EventQueue {
 
   }
 
+  /** 外部触发的 flush（页面隐藏 / 卸载 / 业务显式调用等），来源记为 manual */
   flush(options?: FlushOptions): Promise<void> {
+    return this.runFlush("manual", options);
+  }
 
-    if (this.inFlight) return this.inFlight;
+  private runFlush(source: FlushSource, options?: FlushOptions): Promise<void> {
 
-    if (this.queue.length === 0) return Promise.resolve();
+    if (this.inFlight) {
+      this.log(`flush[${source}]：已有发送进行中，跳过本次`);
+      return this.inFlight;
+    }
 
-    const run = this.drain(options).finally(() => {
+    if (this.queue.length === 0) {
+      this.log(`flush[${source}]：队列 0 条 → 无数据，跳过`);
+      return Promise.resolve();
+    }
+
+    this.log(`flush[${source}]：队列 ${this.queue.length} 条 → 开始发送`);
+
+    const run = this.drain(source, options).finally(() => {
       this.inFlight = undefined;
     });
 
@@ -102,7 +110,7 @@ export class EventQueue {
 
   }
 
-  private async drain(options?: FlushOptions): Promise<void> {
+  private async drain(source: FlushSource, options?: FlushOptions): Promise<void> {
 
     this.clearTimer();
 
@@ -117,15 +125,6 @@ export class EventQueue {
 
       try {
 
-        // Debug → FLUSHING
-        batch.forEach(ctx =>
-          this.debug.emit({
-            stage: "flushing",
-            context: ctx,
-            timestamp: Date.now(),
-          })
-        );
-
         await this.destination.send(batch, options);
 
       } catch (caught) {
@@ -134,10 +133,14 @@ export class EventQueue {
 
       if (!error) {
         this.queue.splice(0, batch.length);
+        this.log(`flush[${source}]：已发送 ${batch.length} 条，队列剩余 ${this.queue.length} 条`);
         continue;
       }
 
       this.drop(batch, error);
+      this.log(
+        `flush[${source}]：发送失败，丢弃 ${batch.length} 条（${String(error)}），队列剩余 ${this.queue.length} 条`,
+      );
 
     }
 
@@ -165,16 +168,6 @@ export class EventQueue {
 
     this.queue.splice(0, batch.length);
 
-    batch.forEach(ctx =>
-      this.debug.emit({
-        stage: "failed",
-        context: ctx,
-        timestamp: Date.now(),
-        reason: "undeliverable",
-        error: `dropped after one attempt: ${String(error)}`,
-      })
-    );
-
   }
 
   private scheduleFlush(): void {
@@ -184,7 +177,7 @@ export class EventQueue {
 
     this.timer = window.setTimeout(() => {
       this.timer = undefined;
-      void this.flush();
+      void this.runFlush("schedule");
     }, this.options.flushInterval);
 
   }
@@ -199,7 +192,7 @@ export class EventQueue {
   }
 
   private readonly handleOnline = (): void => {
-    void this.flush();
+    void this.runFlush("online");
   };
 
 }

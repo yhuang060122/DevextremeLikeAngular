@@ -8,7 +8,6 @@ export interface AnalyticsConfig {
   flushInterval?: number;
   timeoutMs?: number;
   headers?: Record<string, string>;
-  debug?: boolean;
   probes?: ProbeFactory[];
 
   /**

@@ -51,8 +51,8 @@
 
     timeoutMs: 4000,
 
-    // 打开控制台可看到 created/queued/flushing/sent/failed 流水
-    debug: true,
+    // 调试：控制台执行 window.ANALYTICS_DEBUG = true 可查看 event queue
+    // 的 入队 / 队列条数 / flush 来源与结果 日志（schedule / batch / online / manual）
 
     probes: [
       function (recorder) { return new SDK.PageTracker(recorder); },

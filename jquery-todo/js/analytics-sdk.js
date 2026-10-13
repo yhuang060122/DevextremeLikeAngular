@@ -27,48 +27,11 @@ var AnalyticsSDK = (() => {
     PageTracker: () => PageTracker
   });
 
-  // src/analytics/debug.ts
-  var STAGE_COLORS = {
-    created: "#64748B",
-    queued: "#F59E0B",
-    flushing: "#3B82F6",
-    sent: "#22C55E",
-    failed: "#EF4444"
-  };
-  var DebugController = class {
-    constructor(reporting = false) {
-      __publicField(this, "reporting");
-      __publicField(this, "observe");
-      this.reporting = reporting;
-    }
-    emit(event) {
-      if (!this.reporting) return;
-      if (this.observe) {
-        this.observe(event);
-        return;
-      }
-      this.log(event);
-    }
-    console(enable) {
-      this.reporting = enable;
-    }
-    stop() {
-      this.reporting = false;
-      this.observe = void 0;
-    }
-    log(event) {
-      const label = event.reason ? `${event.stage.toUpperCase()} \xB7 ${event.reason}` : event.stage.toUpperCase();
-      console.log(
-        `%c${label}`,
-        `color:${STAGE_COLORS[event.stage]};font-weight:bold`,
-        event.context.event.name,
-        event.context.event.properties
-      );
-    }
-  };
-
   // src/analytics/utils.ts
   var warned = /* @__PURE__ */ new Set();
+  function isDebugEnabled() {
+    return typeof window !== "undefined" && window.ANALYTICS_DEBUG === true;
+  }
   function warnOnce(key, message) {
     if (typeof console === "undefined") return;
     if (warned.has(key)) return;
@@ -106,11 +69,9 @@ var AnalyticsSDK = (() => {
 
   // src/analytics/event-factory.ts
   var EventFactory = class {
-    constructor(debug, sessionIdProvider, app) {
-      __publicField(this, "debug");
+    constructor(sessionIdProvider, app) {
       __publicField(this, "sessionIdProvider");
       __publicField(this, "app");
-      this.debug = debug;
       this.sessionIdProvider = sessionIdProvider;
       this.app = app;
     }
@@ -166,11 +127,6 @@ var AnalyticsSDK = (() => {
         userAgent: scope.navigator?.userAgent ?? "",
         event: eventWithApp
       };
-      this.debug.emit({
-        stage: "created",
-        context,
-        timestamp: Date.now()
-      });
       return context;
     }
   };
@@ -182,19 +138,17 @@ var AnalyticsSDK = (() => {
   };
   var MAX_BUFFERED_EVENTS = 500;
   var EventQueue = class {
-    constructor(destination, debug, options = {}) {
+    constructor(destination, options = {}) {
       __publicField(this, "queue", []);
       __publicField(this, "options");
       __publicField(this, "destination");
-      __publicField(this, "debug");
       __publicField(this, "inFlight");
       __publicField(this, "timer");
       __publicField(this, "autoFlush", true);
       __publicField(this, "handleOnline", () => {
-        void this.flush();
+        void this.runFlush("online");
       });
       this.destination = destination;
-      this.debug = debug;
       this.options = {
         ...DEFAULT_OPTIONS,
         ...options
@@ -203,39 +157,48 @@ var AnalyticsSDK = (() => {
         window.addEventListener("online", this.handleOnline);
       }
     }
+    /** event queue 调试日志：控制台执行 window.ANALYTICS_DEBUG = true 后输出 */
+    log(message) {
+      if (!isDebugEnabled()) return;
+      console.log(`[analytics][queue] ${message}`);
+    }
     enqueue(context) {
       if (this.queue.length >= MAX_BUFFERED_EVENTS) {
         const dropped = this.queue.shift();
-        this.debug.emit({
-          stage: "failed",
-          context: dropped,
-          timestamp: Date.now(),
-          reason: "queue-overflow",
-          error: "queue overflow"
-        });
+        this.log(
+          `enqueue \u961F\u5217\u6EA2\u51FA\uFF08>${MAX_BUFFERED_EVENTS}\uFF09\uFF0C\u4E22\u5F03\u6700\u65E9 1 \u6761\uFF08${dropped.event.name}\uFF09\uFF0C\u961F\u5217\u4ECD\u4E3A ${this.queue.length} \u6761`
+        );
       }
       this.queue.push(context);
-      this.debug.emit({
-        stage: "queued",
-        context,
-        timestamp: Date.now()
-      });
+      this.log(`enqueue +1\uFF08${context.event.name}\uFF09\u2192 \u961F\u5217 ${this.queue.length} \u6761`);
       if (this.queue.length >= this.options.batchSize) {
-        void this.flush();
+        this.log(`enqueue \u961F\u5217\u8FBE\u5230 batchSize(${this.options.batchSize})\uFF0C\u89E6\u53D1 flush[batch]`);
+        void this.runFlush("batch");
         return;
       }
       this.scheduleFlush();
     }
+    /** 外部触发的 flush（页面隐藏 / 卸载 / 业务显式调用等），来源记为 manual */
     flush(options) {
-      if (this.inFlight) return this.inFlight;
-      if (this.queue.length === 0) return Promise.resolve();
-      const run = this.drain(options).finally(() => {
+      return this.runFlush("manual", options);
+    }
+    runFlush(source, options) {
+      if (this.inFlight) {
+        this.log(`flush[${source}]\uFF1A\u5DF2\u6709\u53D1\u9001\u8FDB\u884C\u4E2D\uFF0C\u8DF3\u8FC7\u672C\u6B21`);
+        return this.inFlight;
+      }
+      if (this.queue.length === 0) {
+        this.log(`flush[${source}]\uFF1A\u961F\u5217 0 \u6761 \u2192 \u65E0\u6570\u636E\uFF0C\u8DF3\u8FC7`);
+        return Promise.resolve();
+      }
+      this.log(`flush[${source}]\uFF1A\u961F\u5217 ${this.queue.length} \u6761 \u2192 \u5F00\u59CB\u53D1\u9001`);
+      const run = this.drain(source, options).finally(() => {
         this.inFlight = void 0;
       });
       this.inFlight = run;
       return run;
     }
-    async drain(options) {
+    async drain(source, options) {
       this.clearTimer();
       while (this.queue.length > 0) {
         const batch = this.queue.slice(
@@ -244,22 +207,19 @@ var AnalyticsSDK = (() => {
         );
         let error;
         try {
-          batch.forEach(
-            (ctx) => this.debug.emit({
-              stage: "flushing",
-              context: ctx,
-              timestamp: Date.now()
-            })
-          );
           await this.destination.send(batch, options);
         } catch (caught) {
           error = caught;
         }
         if (!error) {
           this.queue.splice(0, batch.length);
+          this.log(`flush[${source}]\uFF1A\u5DF2\u53D1\u9001 ${batch.length} \u6761\uFF0C\u961F\u5217\u5269\u4F59 ${this.queue.length} \u6761`);
           continue;
         }
         this.drop(batch, error);
+        this.log(
+          `flush[${source}]\uFF1A\u53D1\u9001\u5931\u8D25\uFF0C\u4E22\u5F03 ${batch.length} \u6761\uFF08${String(error)}\uFF09\uFF0C\u961F\u5217\u5269\u4F59 ${this.queue.length} \u6761`
+        );
       }
     }
     stop() {
@@ -274,22 +234,13 @@ var AnalyticsSDK = (() => {
     }
     drop(batch, error) {
       this.queue.splice(0, batch.length);
-      batch.forEach(
-        (ctx) => this.debug.emit({
-          stage: "failed",
-          context: ctx,
-          timestamp: Date.now(),
-          reason: "undeliverable",
-          error: `dropped after one attempt: ${String(error)}`
-        })
-      );
     }
     scheduleFlush() {
       if (!this.autoFlush) return;
       if (this.timer) return;
       this.timer = window.setTimeout(() => {
         this.timer = void 0;
-        void this.flush();
+        void this.runFlush("schedule");
       }, this.options.flushInterval);
     }
     clearTimer() {
@@ -307,32 +258,20 @@ var AnalyticsSDK = (() => {
     return new TextEncoder().encode(body).length;
   }
   var HttpDestination = class {
-    constructor(options, debug) {
+    constructor(options) {
       __publicField(this, "options");
-      __publicField(this, "debug");
       this.options = options;
-      this.debug = debug;
     }
     async send(events, options = {}) {
       if (events.length === 0) return;
       const body = JSON.stringify({ events });
       const keepalive = this.allowKeepalive(body, options.keepalive === true);
-      const started = performance.now();
       let timedOut = false;
       try {
         const response = await this.post(body, keepalive, () => timedOut = true);
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}`);
         }
-        const duration = Math.round(performance.now() - started);
-        events.forEach(
-          (ctx) => this.debug.emit({
-            stage: "sent",
-            context: ctx,
-            timestamp: Date.now(),
-            durationMs: duration
-          })
-        );
       } catch (error) {
         const timeoutMs = this.options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
         const failure = timedOut ? {
@@ -342,15 +281,6 @@ var AnalyticsSDK = (() => {
           reason: "transport-error",
           message: String(error)
         };
-        events.forEach(
-          (ctx) => this.debug.emit({
-            stage: "failed",
-            context: ctx,
-            timestamp: Date.now(),
-            reason: failure.reason,
-            error: failure.message
-          })
-        );
         throw timedOut ? new Error(failure.message) : error;
       }
     }
@@ -398,7 +328,6 @@ var AnalyticsSDK = (() => {
   var Analytics = class {
     constructor(config) {
       __publicField(this, "trackers", []);
-      __publicField(this, "debug");
       __publicField(this, "factory");
       __publicField(this, "queue");
       __publicField(this, "destroyed", false);
@@ -409,25 +338,21 @@ var AnalyticsSDK = (() => {
       __publicField(this, "handleUnload", () => {
         void this.flush({ keepalive: true });
       });
-      this.debug = new DebugController(config.debug === true);
       const destination = new HttpDestination(
         {
           endpoint: config.endpoint,
           headers: config.headers,
           timeoutMs: config.timeoutMs
-        },
-        this.debug
+        }
       );
       this.queue = new EventQueue(
         destination,
-        this.debug,
         {
           batchSize: config.batchSize,
           flushInterval: config.flushInterval
         }
       );
       this.factory = new EventFactory(
-        this.debug,
         config.sessionIdProvider,
         config.app
       );
@@ -458,7 +383,7 @@ var AnalyticsSDK = (() => {
       this.unregisterAll();
       this.removeLifecycle();
       this.queue.stop();
-      void this.flush().finally(() => this.debug.stop());
+      void this.flush();
     }
     /**
      * Awaitable teardown: waits for the buffered events to be
@@ -472,7 +397,6 @@ var AnalyticsSDK = (() => {
       this.removeLifecycle();
       await this.flush();
       this.queue.stop();
-      this.debug.stop();
     }
     get isDestroyed() {
       return this.destroyed;

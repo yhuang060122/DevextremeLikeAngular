@@ -2,19 +2,14 @@ import type { AnalyticsContext, AnalyticsEvent, AppMetadata } from './domain';
 
 import { readPageContext, readSessionId } from './domain';
 
-import type { DebugController } from './debug';
-
 export class EventFactory {
-  private readonly debug: DebugController;
   private readonly sessionIdProvider: (() => string | null) | undefined;
   private readonly app: AppMetadata | undefined;
 
   constructor(
-    debug: DebugController,
     sessionIdProvider?: () => string | null,
     app?: AppMetadata,
   ) {
-    this.debug = debug;
     this.sessionIdProvider = sessionIdProvider;
     this.app = app;
   }
@@ -88,13 +83,6 @@ export class EventFactory {
       userAgent: scope.navigator?.userAgent ?? '',
       event: eventWithApp,
     };
-
-    // Debug → CREATED
-    this.debug.emit({
-      stage: 'created',
-      context,
-      timestamp: Date.now(),
-    });
 
     return context;
   }
