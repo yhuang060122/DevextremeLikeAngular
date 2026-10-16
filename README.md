@@ -107,7 +107,7 @@ npm run start     # 即 ng serve，默认 http://localhost:4200
 
 实现要点：
 
-- 后端：`server/TraceSession/TraceSessionIdMiddleware.cs` + `ITraceSessionStore`（当前单实例用内存实现；若多实例部署，新增共享存储实现并在 DI 切换即可）；
+- 后端：`server/TraceSession/TraceSessionIdMiddleware.cs` + `InMemoryTraceSessionStore`（单实例部署用内存实现，重启即清空映射，仅日志关联用途，可接受）；
 - 前端：`src/app/trace-session/`（Service + 拦截器，默认内存存储，可开启 sessionStorage 持久化以支持 F5 续链，切勿用 localStorage）；
 - CORS 已 `WithExposedHeaders("X-Trace-Session-Id")`，否则浏览器读不到登录响应头；
 - 无效/被篡改的入站 id **不会**导致请求被拒绝，日志中 `TraceSessionId` 为 null；
@@ -284,7 +284,7 @@ Logout POST /api/auth/logout → mapping deleted by incoming header; tab closed 
 
 Key points:
 
-- Backend: `server/TraceSession/TraceSessionIdMiddleware.cs` + `ITraceSessionStore` (in-memory for single instance; swap to a shared store when going multi-instance);
+- Backend: `server/TraceSession/TraceSessionIdMiddleware.cs` + `InMemoryTraceSessionStore` (single instance; in-memory mapping cleared on restart — log-correlation only, acceptable);
 - Frontend: `src/app/trace-session/` (service + interceptor; memory-only by default, optional sessionStorage persistence for F5 survival — never localStorage);
 - CORS exposes the header via `WithExposedHeaders("X-Trace-Session-Id")`, otherwise the browser cannot read it from the login response;
 - Invalid/tampered incoming IDs never reject a request; `TraceSessionId` is null in logs when missing;

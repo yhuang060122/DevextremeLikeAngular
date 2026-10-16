@@ -104,5 +104,5 @@ cd server && dotnet run              # 后端 http://localhost:5080（Scalar UI:
 - 状态栏无"重试连接"按钮；`flushInterval`/`batchSize` 是 demo 友好小值，生产可调大。
 - SDK 的 sessionId 走 `analytics.session`（jquery-todo 独立于 Angular 的 Trace-Session-Id；
   两者各自生成，若要跨应用关联可让 `sessionIdProvider` 返回同一 id）。
-- 多实例部署时 `InMemoryTraceSessionStore` 需换共享存储（见 README Trace-Session-Id 一节）。
+- 当前为单实例部署，TraceSession 映射为内存存储（重启即清空，仅日志关联用途）；若未来改多实例，需将存储换成共享实现（如 Redis）并同步修改中间件/登出端点的依赖类型。
 - `server/Program.cs` CORS 为 demo 级 `AllowAnyOrigin`，上线前应收紧为明确 Origins。

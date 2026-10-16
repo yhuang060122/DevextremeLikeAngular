@@ -44,12 +44,10 @@ builder.Services.AddDbContext<AnalyticsDbContext>(options =>
     options.UseSqlite($"Data Source={dbPath}"));
 
 // ---- Trace-Session-Id 存储注册 ----
-// 当前为单实例部署：直接用内存存储（重启即清空映射，仅日志关联用途，可接受）。
-// 若未来上多实例，新增共享存储（如 Redis）实现并在 DI 中切换即可，
-// 中间件只依赖 ITraceSessionStore 接口，无需改动。
+// 单实例部署：直接用内存存储（重启即清空映射，仅日志关联用途，可接受）。
 builder.Services.AddHttpContextAccessor();
 builder.Services.Configure<TraceSessionOptions>(builder.Configuration.GetSection("TraceSession"));
-builder.Services.AddSingleton<ITraceSessionStore, InMemoryTraceSessionStore>();
+builder.Services.AddSingleton<InMemoryTraceSessionStore>();
 
 // 允许前端跨域直连（demo 级开发配置，生产请收紧为明确 Origins）：
 //   - Angular dev server (http://localhost:4200)，走 proxy 时同源，此配置仅为直连场景兜底；
@@ -303,7 +301,7 @@ app.MapPost("/api/auth/login", (LoginRequest req, HttpContext ctx) =>
     return Results.Ok(new LoginResponse(Token: Guid.NewGuid().ToString("N"), UserId: userId));
 });
 
-app.MapPost("/api/auth/logout", async (HttpContext ctx, ITraceSessionStore store) =>
+app.MapPost("/api/auth/logout", async (HttpContext ctx, InMemoryTraceSessionStore store) =>
 {
     var traceSessionId = ctx.Request.Headers[TraceSessionIdMiddleware.HeaderName].FirstOrDefault();
     var deleted = !string.IsNullOrWhiteSpace(traceSessionId);

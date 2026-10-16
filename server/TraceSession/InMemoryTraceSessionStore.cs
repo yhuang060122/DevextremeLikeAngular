@@ -3,12 +3,12 @@ using System.Collections.Concurrent;
 namespace AnalyticsServer.TraceSession;
 
 /// <summary>
-/// 单实例内存实现（当前部署形态：单实例，不涉及多实例数据同步问题）。
+/// Trace-Session-Id ↔ UserId 映射的内存存储（当前部署形态：单实例，无需共享存储）。
 ///
 /// 重启即清空映射——Trace-Session-Id 仅日志关联用途，丢失只影响后续日志
 /// 关联与登出清理，可接受；TTL 由写入时的过期时间惰性兜底。
 /// </summary>
-public sealed class InMemoryTraceSessionStore : ITraceSessionStore
+public sealed class InMemoryTraceSessionStore
 {
     private sealed record Entry(string UserId, DateTime ExpiresAtUtc);
 

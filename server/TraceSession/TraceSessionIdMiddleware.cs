@@ -24,14 +24,14 @@ public sealed class TraceSessionIdMiddleware
     public const string HeaderName = "X-Trace-Session-Id";
 
     private readonly RequestDelegate _next;
-    private readonly ITraceSessionStore _store;
+    private readonly InMemoryTraceSessionStore _store;
     private readonly TraceSessionOptions _options;
     private readonly ILogger<TraceSessionIdMiddleware> _logger;
     private readonly IHttpContextAccessor _httpContextAccessor;
 
     public TraceSessionIdMiddleware(
         RequestDelegate next,
-        ITraceSessionStore store,
+        InMemoryTraceSessionStore store,
         IOptions<TraceSessionOptions> options,
         ILogger<TraceSessionIdMiddleware> logger,
         IHttpContextAccessor httpContextAccessor)
