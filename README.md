@@ -1,3 +1,460 @@
+
+# Project Handoff: Time-Series EAV Search Implementation
+
+## 1. 技术栈与架构概览 (Tech Stack & Architecture)
+* **Backend**: .NET 10 Web API (C# 14, Primary Constructors, Records)
+* **ORM & Database**: Entity Framework Core 10 + SQL Server
+* **Frontend**: Angular v21 (100% Standalone, Zoneless, Signals, `httpResource`)
+* **核心数据模型**: 带时间序列维度的 EAV（Entity-Attribute-Value）表 `entity_data`。实体属性（如 `name`, `code`, `description`）以纵向行形式存储（`data_code`），且每条记录带有生效日期 `value_date`。
+
+---
+
+## 2. 核心业务规则与架构决策 (Key Design Decisions)
+1. **防历史脏数据误匹配（Point-in-Time Snapshot First）**：
+   * 实体属性随 `value_date` 演进（例如基金或实体曾用名变更）。
+   * **强约束**：严禁直接在全表跑 `LIKE` 模糊匹配。必须先按 `(entity_id, data_code)` 锁定离基准日（`AsOfDate`，默认今天 `<= Today`）最近的那唯一一条记录（`ROW_NUMBER() = 1`），再在最新快照集上执行关键字匹配。
+2. **两阶段查询（Two-Phase Query & Pivot）**：
+   * **Phase 1（定位 ID）**：在最新快照集上过滤搜索词，拿到去重后的 `entity_id` 总数与当前页 ID 列表（如 20 条）。
+   * **Phase 2（条件聚合行转列 Pivot）**：仅针对当前页的 20 个 `entity_id` 提取属性，通过 `MAX(CASE WHEN ...)` 将纵向 EAV 数据拍平为前端所需的横向 DTO，彻底规避全表 Self-Join 与笛卡尔积内存爆炸。
+3. **全链路取消信号穿透（End-to-End Cancellation）**：
+   * 前端 `httpResource` 在用户输入变化时自动触发 `AbortSignal` 中断旧请求 $\rightarrow$ 穿透至 .NET 10 Controller 的 `CancellationToken` $\rightarrow$ 传递至 EF Core `CountAsync(ct)` / `ToListAsync(ct)` 立即终止 SQL Server 慢查询。
+
+---
+
+## 3. 数据库层实现 (SQL Server Schema, Indexes & iTVF)
+
+### 3.1 核心复合索引（避免 Sort 开销，实现 Index Seek）
+```sql
+-- 1. 支撑按 (data_code, entity_id) 快速定位 <= @asOfDate 的最新一条记录
+CREATE NONCLUSTERED INDEX IX_entity_data_DataCode_EntityId_ValueDateDesc
+ON dbo.entity_data (data_code ASC, entity_id ASC, value_date DESC)
+INCLUDE (data_txt_value);
+
+-- 2. 支撑第二阶段按 entity_id 快速拉取对应属性
+CREATE NONCLUSTERED INDEX IX_entity_data_EntityId_DataCode_ValueDateDesc
+ON dbo.entity_data (entity_id ASC, data_code ASC, value_date DESC)
+INCLUDE (data_txt_value, value_data);
+```
+
+### 3.2 内联表值函数 (Inline Table-Valued Function, iTVF)
+将“按基准日期取最新属性快照”封装为参数化视图（iTVF），供 SQL Server 优化器内联展开并实现谓词下推（Predicate Pushdown）：
+
+```sql
+CREATE OR ALTER FUNCTION dbo.fn_GetEntityAttributesAsOf
+(
+    @asOfDate DATETIME2
+)
+RETURNS TABLE
+AS
+RETURN
+(
+    WITH RankedData AS
+    (
+        SELECT 
+            entity_id,
+            data_code,
+            value_date,
+            data_txt_value,
+            ROW_NUMBER() OVER (
+                PARTITION BY entity_id, data_code 
+                ORDER BY value_date DESC
+            ) AS rn
+        FROM dbo.entity_data
+        WHERE value_date <= @asOfDate
+          AND data_code IN ('name', 'code', 'description')
+    )
+    SELECT 
+        entity_id,
+        data_code,
+        value_date,
+        data_txt_value
+    FROM RankedData
+    WHERE rn = 1
+);
+```
+
+---
+
+## 4. 后端实现 (.NET 10 + EF Core 10)
+
+### 4.1 实体与契约 DTO (`Models/SearchModels.cs`)
+```csharp
+namespace MyProject.Api.Models;
+
+// 数据库实体映射
+public class EntityData
+{
+    public int EntityId { get; set; }
+    public string DataCode { get; set; } = string.Empty; // 'name', 'code', 'description'
+    public DateTime ValueDate { get; set; }
+    public string? DataTxtValue { get; set; }
+    public decimal? ValueData { get; set; }
+}
+
+// 搜索请求参数
+public record SearchRequest(
+    string? Query,
+    DateTime? AsOfDate = null,
+    int Page = 1,
+    int PageSize = 20
+);
+
+// 通用分页响应包装器
+public record PagedResult<T>(
+    IReadOnlyList<T> Items,
+    int TotalCount,
+    int Page,
+    int PageSize
+);
+
+// 拍平后的前端展示 DTO
+public record EntitySearchDto(
+    int EntityId,
+    string? Code,
+    string? Name,
+    string? Description,
+    DateTime? LatestValueDate
+);
+```
+
+### 4.2 EF Core `DbContext` 配置与函数映射 (`Data/AppDbContext.cs`)
+```csharp
+using Microsoft.EntityFrameworkCore;
+using MyProject.Api.Models;
+
+namespace MyProject.Api.Data;
+
+public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
+{
+    public DbSet<EntityData> EntityData => Set<EntityData>();
+
+    // 映射 SQL Server 内联表值函数 (iTVF)
+    public IQueryable<EntityData> GetEntityAttributesAsOf(DateTime asOfDate)
+        => FromExpression(() => GetEntityAttributesAsOf(asOfDate));
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        base.OnModelCreating(modelBuilder);
+
+        modelBuilder.Entity<EntityData>(entity =>
+        {
+            entity.ToTable("entity_data");
+            entity.HasKey(e => new { e.EntityId, e.DataCode, e.ValueDate });
+
+            entity.Property(e => e.EntityId).HasColumnName("entity_id");
+            entity.Property(e => e.DataCode).HasColumnName("data_code").HasMaxLength(64);
+            entity.Property(e => e.ValueDate).HasColumnName("value_date");
+            entity.Property(e => e.DataTxtValue).HasColumnName("data_txt_value");
+            entity.Property(e => e.ValueData).HasColumnName("value_data");
+
+            // 复合索引配置（Code-First 场景）
+            entity.HasIndex(x => new { x.DataCode, x.EntityId, x.ValueDate })
+                  .IsDescending(false, false, true)
+                  .IncludeProperties(x => x.DataTxtValue);
+        });
+
+        // 绑定 dbo.fn_GetEntityAttributesAsOf
+        modelBuilder.HasDbFunction(typeof(AppDbContext).GetMethod(
+                nameof(GetEntityAttributesAsOf), [typeof(DateTime)])!)
+            .HasName("fn_GetEntityAttributesAsOf")
+            .HasSchema("dbo");
+    }
+}
+```
+
+### 4.3 Controller 实现：方案 A（推荐：基于 iTVF 表值函数）
+```csharp
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using MyProject.Api.Data;
+using MyProject.Api.Models;
+
+namespace MyProject.Api.Controllers;
+
+[ApiController]
+[Route("api/[controller]")]
+public class EntitiesController(AppDbContext db) : ControllerBase
+{
+    [HttpGet("search")]
+    public async Task<ActionResult<PagedResult<EntitySearchDto>>> Search(
+        [FromQuery] SearchRequest request,
+        CancellationToken ct)
+    {
+        var targetDate = request.AsOfDate?.Date ?? DateTime.Today;
+
+        // 1. 直接查询 iTVF 快照视图（每个 (entity_id, data_code) 已确保唯一且最新）
+        var snapshotQuery = db.GetEntityAttributesAsOf(targetDate)
+            .AsNoTracking();
+
+        // 2. 第一阶段：关键字过滤并定位去重后的 EntityId
+        if (!string.IsNullOrWhiteSpace(request.Query))
+        {
+            var keyword = request.Query.Trim();
+            snapshotQuery = snapshotQuery.Where(x =>
+                x.DataTxtValue != null &&
+                EF.Functions.Like(x.DataTxtValue, $"%{keyword}%"));
+        }
+
+        var distinctEntityIds = snapshotQuery
+            .Select(x => x.EntityId)
+            .Distinct();
+
+        var totalCount = await distinctEntityIds.CountAsync(ct);
+        if (totalCount == 0)
+        {
+            return Ok(new PagedResult<EntitySearchDto>([], 0, request.Page, request.PageSize));
+        }
+
+        var pagedEntityIds = await distinctEntityIds
+            .OrderBy(id => id)
+            .Skip((request.Page - 1) * request.PageSize)
+            .Take(request.PageSize)
+            .ToListAsync(ct);
+
+        // 3. 第二阶段：针对当前页的 20 个 EntityId 在 SQL 端执行条件聚合 (MAX CASE WHEN) 行转列
+        var items = await db.GetEntityAttributesAsOf(targetDate)
+            .AsNoTracking()
+            .Where(x => pagedEntityIds.Contains(x.EntityId))
+            .GroupBy(x => x.EntityId)
+            .Select(g => new EntitySearchDto(
+                g.Key,
+                g.Where(x => x.DataCode == "code").Select(x => x.DataTxtValue).FirstOrDefault(),
+                g.Where(x => x.DataCode == "name").Select(x => x.DataTxtValue).FirstOrDefault(),
+                g.Where(x => x.DataCode == "description").Select(x => x.DataTxtValue).FirstOrDefault(),
+                g.Max(x => x.ValueDate)
+            ))
+            .ToListAsync(ct);
+
+        return Ok(new PagedResult<EntitySearchDto>(items, totalCount, request.Page, request.PageSize));
+    }
+}
+```
+
+### 4.4 Controller 备选实现：方案 B（纯 LINQ 写法，无需数据库建函数）
+如果环境受限无法创建 SQL 函数，可直接使用 EF Core 10 的 `GroupBy` + `FirstOrDefault` 翻译为 `ROW_NUMBER()`：
+
+```csharp
+[HttpGet("search-linq")]
+public async Task<ActionResult<PagedResult<EntitySearchDto>>> SearchPureLinq(
+    [FromQuery] SearchRequest request,
+    CancellationToken ct)
+{
+    var targetDate = request.AsOfDate?.Date ?? DateTime.Today;
+    string[] targetCodes = ["name", "code", "description"];
+
+    // 0. 构建最新快照 IQueryable 表达式树
+    var latestAttributesQuery = db.EntityData
+        .AsNoTracking()
+        .Where(x => targetCodes.Contains(x.DataCode) && x.ValueDate <= targetDate)
+        .GroupBy(x => new { x.EntityId, x.DataCode })
+        .Select(g => g.OrderByDescending(x => x.ValueDate).FirstOrDefault()!);
+
+    // 1. 第一阶段：过滤搜索词并获取分页 EntityId
+    var matchedQuery = latestAttributesQuery;
+    if (!string.IsNullOrWhiteSpace(request.Query))
+    {
+        var keyword = request.Query.Trim();
+        matchedQuery = matchedQuery.Where(x =>
+            x.DataTxtValue != null &&
+            EF.Functions.Like(x.DataTxtValue, $"%{keyword}%"));
+    }
+
+    var distinctEntityIds = matchedQuery.Select(x => x.EntityId).Distinct();
+    var totalCount = await distinctEntityIds.CountAsync(ct);
+
+    if (totalCount == 0)
+    {
+        return Ok(new PagedResult<EntitySearchDto>([], 0, request.Page, request.PageSize));
+    }
+
+    var pagedEntityIds = await distinctEntityIds
+        .OrderBy(id => id)
+        .Skip((request.Page - 1) * request.PageSize)
+        .Take(request.PageSize)
+        .ToListAsync(ct);
+
+    // 2. 第二阶段：拉取当前页最多 20 * 3 = 60 行最新属性记录，并在内存拍平为 DTO
+    var latestRowsForPage = await db.EntityData
+        .AsNoTracking()
+        .Where(x => pagedEntityIds.Contains(x.EntityId)
+                 && targetCodes.Contains(x.DataCode)
+                 && x.ValueDate <= targetDate)
+        .GroupBy(x => new { x.EntityId, x.DataCode })
+        .Select(g => g.OrderByDescending(x => x.ValueDate).FirstOrDefault()!)
+        .ToListAsync(ct);
+
+    var items = pagedEntityIds
+        .Select(id =>
+        {
+            var rows = latestRowsForPage.Where(r => r.EntityId == id).ToList();
+            return new EntitySearchDto(
+                EntityId: id,
+                Code: rows.FirstOrDefault(r => r.DataCode == "code")?.DataTxtValue,
+                Name: rows.FirstOrDefault(r => r.DataCode == "name")?.DataTxtValue,
+                Description: rows.FirstOrDefault(r => r.DataCode == "description")?.DataTxtValue,
+                LatestValueDate: rows.Count > 0 ? rows.Max(r => r.ValueDate) : null
+            );
+        })
+        .ToList();
+
+    return Ok(new PagedResult<EntitySearchDto>(items, totalCount, request.Page, request.PageSize));
+}
+```
+
+---
+
+## 5. 前端实现 (Angular v21)
+
+### 5.1 类型契约定义 (`models/entity-search.model.ts`)
+```typescript
+export interface SearchRequest {
+  query: string;
+  asOfDate?: string;
+  page: number;
+  pageSize: number;
+}
+
+export interface PagedResult<T> {
+  items: T[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface EntitySearchDto {
+  entityId: number;
+  code: string | null;
+  name: string | null;
+  description: string | null;
+  latestValueDate: string | null;
+}
+```
+
+### 5.2 响应式搜索组件 (`entity-search.component.ts`)
+结合 `signal`、`toObservable` 防抖与 `httpResource` 实现自动请求管理与过期请求中断（`AbortSignal`）：
+
+```typescript
+import { Component, signal } from '@angular/core';
+import { httpResource } from '@angular/common/http';
+import { toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
+import { FormsModule } from '@angular/forms';
+import { DatePipe } from '@angular/common';
+import { PagedResult, EntitySearchDto } from './models/entity-search.model';
+
+@Component({
+  selector: 'app-entity-search',
+  standalone: true,
+  imports: [FormsModule, DatePipe],
+  template: `
+    <div class="search-panel">
+      <div class="filters">
+        <!-- 关键字输入 -->
+        <input 
+          type="search" 
+          [ngModel]="rawQuery()" 
+          (ngModelChange)="onQueryChange($event)"
+          placeholder="搜索名称、编码或描述..." 
+        />
+
+        <!-- 基准日期选择 (As-Of Date) -->
+        <input 
+          type="date" 
+          [ngModel]="asOfDate()" 
+          (ngModelChange)="onDateChange($event)" 
+        />
+      </div>
+
+      @if (searchResource.isLoading()) {
+        <div class="status-loading">正在检索最新快照数据...</div>
+      }
+
+      @if (searchResource.error()) {
+        <div class="status-error">检索失败，请稍后重试。</div>
+      }
+
+      @if (searchResource.value(); as data) {
+        <div class="summary">共匹配到 {{ data.totalCount }} 个实体</div>
+
+        <table class="result-table">
+          <thead>
+            <tr>
+              <th>Entity ID</th>
+              <th>Code</th>
+              <th>Name</th>
+              <th>Description</th>
+              <th>Latest Value Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (item of data.items; track item.entityId) {
+              <tr>
+                <td>{{ item.entityId }}</td>
+                <td><strong>{{ item.code ?? '-' }}</strong></td>
+                <td>{{ item.name ?? '-' }}</td>
+                <td>{{ item.description ?? '-' }}</td>
+                <td>{{ item.latestValueDate | date:'yyyy-MM-dd' }}</td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="5" class="empty">未找到符合条件的实体</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }
+    </div>
+  `
+})
+export class EntitySearchComponent {
+  // 1. 原始状态 Signals
+  readonly rawQuery = signal('');
+  readonly asOfDate = signal(new Date().toISOString().split('T')[0]); // 默认今天 yyyy-MM-dd
+  readonly page = signal(1);
+  readonly pageSize = signal(20);
+
+  // 2. 防抖处理（300ms）
+  readonly debouncedQuery = toSignal(
+    toObservable(this.rawQuery).pipe(
+      debounceTime(300),
+      distinctUntilChanged()
+    ),
+    { initialValue: '' }
+  );
+
+  // 3. 声明式 HTTP 资源：自动追踪 Signal 依赖并在参数变化时 Abort 上一次未完成的请求
+  readonly searchResource = httpResource<PagedResult<EntitySearchDto>>(() => ({
+    url: '/api/entities/search',
+    method: 'GET',
+    params: {
+      query: this.debouncedQuery().trim(),
+      asOfDate: this.asOfDate(),
+      page: this.page(),
+      pageSize: this.pageSize()
+    }
+  }));
+
+  onQueryChange(newQuery: string): void {
+    this.rawQuery.set(newQuery);
+    this.page.set(1);
+  }
+
+  onDateChange(newDate: string): void {
+    this.asOfDate.set(newDate);
+    this.page.set(1);
+  }
+}
+```
+
+---
+
+## 6. 后续演进待办 (Next Steps / TODOs)
+- [ ] **EF Core Migration 集成**：将 `fn_GetEntityAttributesAsOf` 的创建脚本纳入项目的 EF Core Migration（`migrationBuilder.Sql(...)`）实现自动化部署。
+- [ ] **自定义排序支持**：支持前端按 `code` 或 `name` 的字母序对分页结果进行排序（在第一阶段查询中对目标排序属性的 `data_txt_value` 执行排序后再取分页 ID）。
+- [ ] **数值型扩展检索**：如业务需要按 `value_data`（数值列）范围过滤，可在 `fn_GetEntityAttributesAsOf` 返回列中追加 `value_data` 并在 DTO 中映射。
+
+
+
 # DevextremeLikeDataGrid
 
 > Devextreme 风格的数据网格 + 埋点日志 + 会话级追踪的全栈演示项目 / A full-stack demo of a Devextreme-style data grid, analytics logging, and session-level tracing.
